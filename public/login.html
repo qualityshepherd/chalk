@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalk</title>
+<link rel="stylesheet" href="/login.css">
+</head>
+<body>
+  <main>
+    <h1>chalk</h1>
+
+    <section id="login-section">
+      <form id="login-form">
+        <label for="passphrase">passphrase</label>
+        <div class="passphrase-wrap">
+          <input id="passphrase" type="password" autocomplete="current-password">
+          <button type="button" class="toggle-eye" id="login-toggle" aria-label="Show passphrase">
+            <svg id="login-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+        <div class="phrase-strength"><div class="strength-bar" id="login-bar"></div></div>
+        <div class="strength-flavor" id="login-flavor"></div>
+        <button id="login-btn" type="submit">log in</button>
+        <span id="status"></span>
+      </form>
+    </section>
+
+    <section id="setup-section">
+      <p class="sub">first run — choose a strong passphrase to generate your key</p>
+      <label for="setup-passphrase">passphrase</label>
+      <div class="passphrase-wrap">
+        <input id="setup-passphrase" type="password" autocomplete="new-password" placeholder="something memorable">
+        <button type="button" class="toggle-eye" id="setup-toggle" aria-label="Show passphrase">
+          <svg id="setup-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </button>
+      </div>
+      <div class="phrase-strength"><div class="strength-bar" id="setup-bar"></div></div>
+      <div class="strength-flavor" id="setup-flavor"></div>
+      <button id="generate-btn" class="action">generate key</button>
+      <div id="output">
+        <p>Add this to <code>wrangler.toml</code> and redeploy:</p>
+        <pre id="vars-block"></pre>
+      </div>
+    </section>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

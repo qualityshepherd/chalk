@@ -1,0 +1,57 @@
+@font-face{font-family:header;src:url(/assets/fonts/Oswald-Regular.ttf) format(truetype)}
+@font-face{font-family:Inter;src:url(/assets/fonts/Inter-Regular.woff2) format(woff2)}
+@font-face{font-family:mono;src:url(/assets/fonts/intelone-mono-font-family-regular.otf) format(opentype)}
+:root{--bg-darkest:#222;--text:#A0A0A2;--header:#79808A;--alt1:#79808A;--alt3:#957A65}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-size:1.1rem;background:var(--bg-darkest);color:var(--text);font-family:Inter,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:720px;margin:0 auto;padding:2rem 1rem}
+.title{font-family:header;font-size:2rem;color:var(--header);text-transform:uppercase;letter-spacing:.05em}
+.subtitle{color:var(--alt1);font-size:0.95rem;margin-bottom:0}
+.days-nav{display:flex;gap:1.5rem;margin:1rem 0 2rem;flex-wrap:wrap}
+.days-nav a{color:var(--alt1);text-decoration:none}.days-nav a.active,.days-nav a:hover{color:var(--alt3)}
+.summary{display:flex;flex-wrap:wrap;gap:1.5rem 2rem;margin:1rem 0 2rem}
+.summary strong{display:block;font-size:2.9rem;line-height:1;color:var(--header);font-family:header;font-weight:600}
+.summary span{color:var(--alt1);font-size:0.9rem;text-transform:uppercase;letter-spacing:.08em}
+h2{margin:2rem 0 .75rem;font-size:0.95rem;color:var(--alt1);letter-spacing:.15em;text-transform:uppercase;padding-bottom:.5rem;border-bottom:1px solid rgba(255,255,255,.06);font-family:header;font-weight:normal}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 2rem}
+.bar-wrap{display:flex;align-items:center;gap:1rem;padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.bar-wrap:hover .label{color:var(--alt3)}
+.bar-wrap .label{color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-wrap .bar{height:2px;background:var(--alt3);min-width:2px;flex-shrink:0;opacity:.5}
+.bar-wrap .count{color:var(--alt1);min-width:2rem;text-align:right;font-family:mono}
+.maps{display:grid;grid-template-columns:7fr 24fr;gap:1rem;margin:.5rem 0 1.5rem;align-items:end}
+.heatmap{display:grid;gap:3px}
+.heatmap.dow{grid-template-columns:repeat(7,1fr)}
+.heatmap.hour{grid-template-columns:repeat(24,1fr)}
+.heatmap-cell{height:16px;background:var(--alt3);border-radius:2px}
+.heatmap-labels{display:grid;gap:3px;margin-top:3px}
+.heatmap-labels.dow{grid-template-columns:repeat(7,1fr)}
+.heatmap-labels.hour{grid-template-columns:repeat(24,1fr)}
+.heatmap-labels span{font-size:55%;color:var(--alt1);text-align:center;font-family:mono}
+.session-header{display:grid;grid-template-columns:11rem 11rem 1fr 8rem;gap:.75rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:92%;font-family:mono}
+.session-header:hover .log-city{color:var(--alt3)}
+.log-ts{color:var(--alt1);white-space:nowrap;cursor:default}
+.log-city{color:var(--alt1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.log-city:hover{color:var(--alt3)}
+.log-city.active{color:var(--alt3)}
+.log-path{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-ref{color:var(--alt1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.6;font-size:80%}
+.log-count{color:var(--alt1);font-family:mono;text-align:right;white-space:nowrap}
+.filter-bar{display:flex;align-items:center;gap:1rem;margin:.5rem 0;font-size:85%;font-family:mono;min-height:1.5rem}
+.filter-bar span{color:var(--alt3)}
+.filter-bar a{color:var(--alt1);cursor:pointer;text-decoration:underline}
+.has-tip{position:relative;cursor:default}
+.has-tip .tip{display:none;position:absolute;top:calc(100% + .35rem);right:0;background:#1a1a1a;border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:.3rem .5rem;white-space:nowrap;font-size:70%;font-family:mono;color:var(--text);z-index:10;pointer-events:none}
+.has-tip:hover .tip{display:block}
+.tip-row{display:flex;gap:.75rem;justify-content:space-between;padding:.05rem 0}
+.tip-row span{color:var(--alt1)}
+.tip-row strong{color:var(--alt3)}
+@media(max-width:520px){
+  .wrap{padding:1.5rem 1rem}
+  .summary{gap:1rem 1.5rem}
+  .charts-grid{grid-template-columns:1fr}
+  .heatmap-labels.hour span:nth-child(even){visibility:hidden}
+  .session-header{grid-template-columns:auto 1fr auto}
+  .log-path{display:none}
+  .maps{grid-template-columns:1fr}
+}

@@ -1,0 +1,16 @@
+{
+  "name": "chalk",
+  "version": "0.1.0",
+  "description": "Shared analytics service for brine.dev properties",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js && npx standard .",
+    "deploy": "wrangler deploy",
+    "db:migrate:remote": "wrangler d1 migrations apply chalk --remote",
+    "pretty": "npx standard --fix"
+  },
+  "devDependencies": {
+    "wrangler": "^4.123.0"
+  }
+}

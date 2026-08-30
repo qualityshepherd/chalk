@@ -1,0 +1,18 @@
+# Copy to wrangler.toml and fill in database_id, AUTH_PUBKEY, HIT_SECRET.
+name = "chalk"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chalk"
+database_id = "" # npx wrangler d1 create chalk
+
+[vars]
+AUTH_PUBKEY = "" # visit /login once deployed — it'll generate this for you from your passphrase
+HIT_SECRET = "" # shared secret apps send as the x-hit-secret header on POST /hit
