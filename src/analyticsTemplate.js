@@ -205,13 +205,14 @@ const renderLogs = () => {
     filterBar.innerHTML = session ? \`<span onclick="clearFilter()" style="cursor:pointer">\${flagWithRegion(session.country, session.region)} \${escapeHtml(session.city || '?')}\${ref ? \` · \${ref}\` : ''} <a>✕ clear</a></span>\` : ''
     const html = sessions.flatMap(session =>
       session.paths.map((path, j) => {
-        const refHost = session.pathRefs && session.pathRefs[j] ? escapeHtml(safeHostname(session.pathRefs[j])) : ''
+        const rawRef = session.pathRefs && session.pathRefs[j] ? session.pathRefs[j] : ''
+        const refHost = rawRef ? escapeHtml(safeHostname(rawRef)) : ''
         const locTipF = escapeHtml(locationTooltip(session.city, session.region, session.country))
       return \`<div class="session-header" onclick="clearFilter()" style="cursor:pointer">\` +
         \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.pathTs ? session.pathTs[j] : session.ts)}</span>\` +
         \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}</span>\` +
         \`<span class="log-path" title="\${escapeHtml(path)}">\${escapeHtml(path)}</span>\` +
-        \`<span class="log-ref">\${refHost}</span>\` +
+        \`<span class="log-ref" title="\${escapeHtml(rawRef)}">\${refHost}</span>\` +
         \`</div>\`
       })
     ).join('')
@@ -223,13 +224,14 @@ const renderLogs = () => {
   const html = allSessions.slice(0, 999).map(session => {
     const count = session.paths.length
     const firstPath = session.paths[0] || ''
-    const firstRef = session.pathRefs && session.pathRefs[0] ? escapeHtml(safeHostname(session.pathRefs[0])) : ''
+    const firstRawRef = session.pathRefs && session.pathRefs[0] ? session.pathRefs[0] : ''
+    const firstRef = firstRawRef ? escapeHtml(safeHostname(firstRawRef)) : ''
     const locTip = escapeHtml(locationTooltip(session.city, session.region, session.country))
     return \`<div class="session-header">\` +
       \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.ts)}</span>\` +
       \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}\${count > 1 ? \` (\${count})\` : ''}</span>\` +
       \`<span class="log-path" title="\${escapeHtml(firstPath)}">\${escapeHtml(firstPath)}</span>\` +
-      \`<span class="log-ref">\${firstRef}</span>\` +
+      \`<span class="log-ref" title="\${escapeHtml(firstRawRef)}">\${firstRef}</span>\` +
       \`</div>\`
   }).join('')
   document.getElementById('logs').innerHTML = html ? \`<h2>recent hits</h2>\${html}\` : ''
