@@ -10,10 +10,11 @@ body{font-size:1.1rem;background:var(--bg-darkest);color:var(--text);font-family
 .days-nav{display:flex;gap:1.5rem;margin:1rem 0 2rem;flex-wrap:wrap}
 .days-nav a{color:var(--alt1);text-decoration:none}.days-nav a.active,.days-nav a:hover{color:var(--alt3)}
 .summary{display:flex;flex-wrap:wrap;gap:1.5rem 2rem;margin:1rem 0 2rem}
-.summary strong{display:block;font-size:2.9rem;line-height:1;color:var(--header);font-family:header;font-weight:600}
+.summary strong{display:block;font-size:2.6rem;line-height:1;color:var(--header);font-family:header;font-weight:600}
 .summary span{color:var(--alt1);font-size:0.9rem;text-transform:uppercase;letter-spacing:.08em}
 h2{margin:2rem 0 .75rem;font-size:0.95rem;color:var(--alt1);letter-spacing:.15em;text-transform:uppercase;padding-bottom:.5rem;border-bottom:1px solid rgba(255,255,255,.06);font-family:header;font-weight:normal}
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 2rem}
+.charts-grid>div{min-width:0}
 .bar-wrap{display:flex;align-items:center;gap:1rem;padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .bar-wrap:hover .label{color:var(--alt3)}
 .bar-wrap .label{color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -34,7 +35,7 @@ h2{margin:2rem 0 .75rem;font-size:0.95rem;color:var(--alt1);letter-spacing:.15em
 .log-city{color:var(--alt1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .log-city:hover{color:var(--alt3)}
 .log-city.active{color:var(--alt3)}
-.log-path{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-path{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .log-ref{color:var(--alt1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.6;font-size:80%}
 .log-count{color:var(--alt1);font-family:mono;text-align:right;white-space:nowrap}
 .filter-bar{display:flex;align-items:center;gap:1rem;margin:.5rem 0;font-size:85%;font-family:mono;min-height:1.5rem}
@@ -49,9 +50,11 @@ h2{margin:2rem 0 .75rem;font-size:0.95rem;color:var(--alt1);letter-spacing:.15em
 @media(max-width:520px){
   .wrap{padding:1.5rem 1rem}
   .summary{gap:1rem 1.5rem}
+  .summary strong{font-size:2.2rem}
+  .summary strong.long{font-size:1.5rem}
   .charts-grid{grid-template-columns:1fr}
   .heatmap-labels.hour span:nth-child(even){visibility:hidden}
-  .session-header{grid-template-columns:auto 1fr auto}
-  .log-path{display:none}
+  .session-header{grid-template-columns:auto 6rem 1fr}
+  .log-ref{display:none}
   .maps{grid-template-columns:1fr}
 }

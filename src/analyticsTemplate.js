@@ -90,6 +90,14 @@ const flagWithRegion = (code, region) => {
   return emoji ? \`<span title="\${locationTooltip(null, region, code)}">\${emoji}</span>\` : ''
 }
 
+const formatNum = (n) => {
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\\.0$/, '') + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\\.0$/, '') + 'k'
+  return String(n)
+}
+
+const statClass = (n) => n >= 1e3 ? ' long' : ''
+
 const fmtTs = (ts) => {
   const dateObj = new Date(ts)
   const date = days > 1 ? dateObj.toLocaleDateString('en', { month: 'short', day: 'numeric' }) + ' · ' : ''
@@ -242,12 +250,12 @@ const render = (allData) => {
   const mobilePct = totalDevices > 0 ? Math.round((stats.byDevice.mobile / totalDevices) * 100) : null
 
   document.getElementById('summary').innerHTML =
-    \`<div><strong>\${stats.totalHits}</strong><span>hits</span></div>\` +
-    \`<div><strong>\${stats.totalUniques}</strong><span>unique</span></div>\` +
+    \`<div><strong class="\${statClass(stats.totalHits)}" title="\${stats.totalHits}">\${formatNum(stats.totalHits)}</strong><span>hits</span></div>\` +
+    \`<div><strong class="\${statClass(stats.totalUniques)}" title="\${stats.totalUniques}">\${formatNum(stats.totalUniques)}</strong><span>unique</span></div>\` +
     \`<div><strong>\${allData.length}</strong><span>days</span></div>\` +
-    \`<div><strong>\${stats.totalBots}</strong><span>🤖 bots</span></div>\` +
+    \`<div><strong class="\${statClass(stats.totalBots)}" title="\${stats.totalBots}">\${formatNum(stats.totalBots)}</strong><span>🤖 bots</span></div>\` +
     (mobilePct !== null ? \`<div><strong>\${mobilePct}%</strong><span>📱 mobile</span></div>\` : '') +
-    (totalRssHits > 0 ? \`<div class="has-tip"><strong>\${totalRssHits}</strong><span>📡 rss</span><div class="tip">\${rssTip}</div></div>\` : '')
+    (totalRssHits > 0 ? \`<div class="has-tip"><strong class="\${statClass(totalRssHits)}" title="\${totalRssHits}">\${formatNum(totalRssHits)}</strong><span>📡 rss</span><div class="tip">\${rssTip}</div></div>\` : '')
 
   document.getElementById('maps').innerHTML =
     \`<div>\${heatmap(stats.byDow, DOW, 'dow')}</div>\` +
