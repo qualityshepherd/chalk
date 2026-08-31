@@ -208,7 +208,7 @@ const renderLogs = () => {
         const refHost = session.pathRefs && session.pathRefs[j] ? escapeHtml(safeHostname(session.pathRefs[j])) : ''
         const locTipF = escapeHtml(locationTooltip(session.city, session.region, session.country))
       return \`<div class="session-header" onclick="clearFilter()" style="cursor:pointer">\` +
-        \`<span class="log-ts" title="\${session.ip || ''}">\${fmtTs(session.pathTs ? session.pathTs[j] : session.ts)}</span>\` +
+        \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.pathTs ? session.pathTs[j] : session.ts)}</span>\` +
         \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}</span>\` +
         \`<span class="log-path" title="\${escapeHtml(path)}">\${escapeHtml(path)}</span>\` +
         \`<span class="log-ref">\${refHost}</span>\` +
@@ -226,7 +226,7 @@ const renderLogs = () => {
     const firstRef = session.pathRefs && session.pathRefs[0] ? escapeHtml(safeHostname(session.pathRefs[0])) : ''
     const locTip = escapeHtml(locationTooltip(session.city, session.region, session.country))
     return \`<div class="session-header">\` +
-      \`<span class="log-ts" title="\${session.ip || ''}">\${fmtTs(session.ts)}</span>\` +
+      \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.ts)}</span>\` +
       \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}\${count > 1 ? \` (\${count})\` : ''}</span>\` +
       \`<span class="log-path" title="\${escapeHtml(firstPath)}">\${escapeHtml(firstPath)}</span>\` +
       \`<span class="log-ref">\${firstRef}</span>\` +
