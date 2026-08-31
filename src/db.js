@@ -60,7 +60,11 @@ export async function createSession (db, token) {
 export async function getValidSession (db, token) {
   const hash = await hashToken(token)
   const row = await db.prepare('SELECT created_at FROM sessions WHERE token=?').bind(hash).first()
-  if (!row || isSessionExpired(row.created_at, Date.now())) return null
+  if (!row) return null
+  if (isSessionExpired(row.created_at, Date.now())) {
+    await db.prepare('DELETE FROM sessions WHERE token=?').bind(hash).run().catch(() => {})
+    return null
+  }
   return row
 }
 
@@ -69,13 +73,13 @@ export async function deleteSession (db, token) {
   await db.prepare('DELETE FROM sessions WHERE token=?').bind(hash).run()
 }
 
-export async function getRateLimit (db, ip) {
-  const row = await db.prepare('SELECT count, reset_at FROM login_attempts WHERE ip=?').bind(ip).first()
+export async function getRateLimit (db, table, ip) {
+  const row = await db.prepare(`SELECT count, reset_at FROM ${table} WHERE ip=?`).bind(ip).first()
   return row ? { count: row.count, resetAt: row.reset_at } : null
 }
 
-export async function setRateLimit (db, ip, record) {
+export async function setRateLimit (db, table, ip, record) {
   await db.prepare(
-    'INSERT INTO login_attempts (ip,count,reset_at) VALUES (?,?,?) ON CONFLICT(ip) DO UPDATE SET count=excluded.count, reset_at=excluded.reset_at'
+    `INSERT INTO ${table} (ip,count,reset_at) VALUES (?,?,?) ON CONFLICT(ip) DO UPDATE SET count=excluded.count, reset_at=excluded.reset_at`
   ).bind(ip, record.count, record.resetAt).run()
 }

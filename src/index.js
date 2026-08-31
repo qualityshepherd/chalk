@@ -7,7 +7,8 @@ import {
 import {
   parseCookies, sessionCookie, clearedSessionCookie, generateNonce, generateSessionToken,
   isAuthorizedPubkey, verifySignature, hexToBytes, isRateLimited, incrementAttempt,
-  SESSION_TTL_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS
+  SESSION_TTL_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS,
+  CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS, CHALLENGE_RATE_LIMIT_WINDOW_MS
 } from './auth.js'
 import { isBot, isDatacenter, parseDevice, parseRssSubscribers, hashIp } from './analytics-core.js'
 
@@ -92,11 +93,18 @@ async function handleHit (req, env) {
   return new Response('ok')
 }
 
+// Clamps the days query param to a sane range — bad input (negative, NaN)
+// silently fell through to an empty result before this existed.
+export const clampDays = (raw) => {
+  const parsed = parseInt(raw ?? '7', 10)
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 90) : 7
+}
+
 // GET /api/analytics?domain=brine.dev&days=7
 const handleAnalyticsData = withAuth(async (req, env) => {
   const url = new URL(req.url)
   const domain = url.searchParams.get('domain')
-  const days = Math.min(parseInt(url.searchParams.get('days') || '7'), 90)
+  const days = clampDays(url.searchParams.get('days'))
 
   if (!domain) {
     const domains = await getDomains(env.DB)
@@ -185,6 +193,13 @@ const handleAnalyticsData = withAuth(async (req, env) => {
 
 // Auth routes
 async function handleChallenge (req, env) {
+  const ip = req.headers.get('cf-connecting-ip') || 'unknown'
+  const record = await getRateLimit(env.DB, 'challenge_attempts', ip)
+  if (isRateLimited(record, Date.now(), CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS)) {
+    return json({ error: 'too many attempts' }, 429)
+  }
+  await setRateLimit(env.DB, 'challenge_attempts', ip, incrementAttempt(record, Date.now(), CHALLENGE_RATE_LIMIT_WINDOW_MS))
+
   const nonce = generateNonce()
   await createNonce(env.DB, nonce)
   return json({ challenge: nonce, configured: !!env.AUTH_PUBKEY })
@@ -192,7 +207,7 @@ async function handleChallenge (req, env) {
 
 async function handleLogin (req, env) {
   const ip = req.headers.get('cf-connecting-ip') || 'unknown'
-  const record = await getRateLimit(env.DB, ip)
+  const record = await getRateLimit(env.DB, 'login_attempts', ip)
   if (isRateLimited(record, Date.now(), LOGIN_RATE_LIMIT_MAX_ATTEMPTS)) {
     return json({ error: 'too many attempts' }, 429)
   }
@@ -205,14 +220,14 @@ async function handleLogin (req, env) {
 
   if (!isAuthorizedPubkey(pubkey, env)) {
     const next = incrementAttempt(record, Date.now(), LOGIN_RATE_LIMIT_WINDOW_MS)
-    await setRateLimit(env.DB, ip, next)
+    await setRateLimit(env.DB, 'login_attempts', ip, next)
     return json({ error: 'unauthorized' }, 401)
   }
 
   const verified = await verifySignature(challenge, sig, hexToBytes(pubkey))
   if (!verified) {
     const next = incrementAttempt(record, Date.now(), LOGIN_RATE_LIMIT_WINDOW_MS)
-    await setRateLimit(env.DB, ip, next)
+    await setRateLimit(env.DB, 'login_attempts', ip, next)
     return json({ error: 'signature invalid' }, 401)
   }
 

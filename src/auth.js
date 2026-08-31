@@ -27,6 +27,8 @@ export const NONCE_TTL_MS = 5 * 60 * 1000
 export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000
 export const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 6
 export const LOGIN_RATE_LIMIT_WINDOW_MS = 12 * 60 * 1000
+export const CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS = 20
+export const CHALLENGE_RATE_LIMIT_WINDOW_MS = 60 * 1000
 
 export function generateNonce () {
   const bytes = new Uint8Array(16)
