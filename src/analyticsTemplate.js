@@ -52,6 +52,17 @@ const countryName = code => COUNTRY_NAMES[code] || code
 // a valid URL - every callsite that reads its hostname needs this guard.
 const safeHostname = (url) => { try { return new URL(url).hostname } catch { return '' } }
 
+// path/city/referrer ultimately trace back to a visitor's request (the URL
+// they typed, their Referer header) - anything from a hit record that lands
+// in innerHTML has to go through this first, or a crafted path is stored
+// XSS against whoever's logged into the dashboard.
+const escapeHtml = (str) => String(str)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;')
+
 // Region-code data is inconsistent upstream ('?' shows up as a real value,
 // not just missing) - centralize the "is this actually usable" check here
 // instead of repeating the same '&& region !== "?"' at every callsite.
@@ -105,8 +116,8 @@ const fmtTs = (ts) => {
 }
 
 const bars = (items, isCountry = false) => items.map(([name, count]) => {
-  const label = isCountry ? \`\${flag(name)}\${countryName(name)}\` : name
-  const title = isCountry ? countryName(name) : name
+  const label = isCountry ? \`\${flag(name)}\${escapeHtml(countryName(name))}\` : escapeHtml(name)
+  const title = isCountry ? escapeHtml(countryName(name)) : escapeHtml(name)
   return \`<div class="bar-wrap" title="\${title}">\` +
     \`<span class="label">\${label}</span>\` +
     \`<div class="bar" style="width:\${Math.round(count / (items[0]?.[1] || 1) * 120)}px"></div>\` +
@@ -190,16 +201,16 @@ const renderLogs = () => {
   if (activeIp) {
     const sessions = allSessions.filter(session => session.ip === activeIp)
     const session = sessions[0]
-    const ref = session && session.referrer ? safeHostname(session.referrer) : ''
-    filterBar.innerHTML = session ? \`<span onclick="clearFilter()" style="cursor:pointer">\${flagWithRegion(session.country, session.region)} \${session.city || '?'}\${ref ? \` · \${ref}\` : ''} <a>✕ clear</a></span>\` : ''
+    const ref = session && session.referrer ? escapeHtml(safeHostname(session.referrer)) : ''
+    filterBar.innerHTML = session ? \`<span onclick="clearFilter()" style="cursor:pointer">\${flagWithRegion(session.country, session.region)} \${escapeHtml(session.city || '?')}\${ref ? \` · \${ref}\` : ''} <a>✕ clear</a></span>\` : ''
     const html = sessions.flatMap(session =>
       session.paths.map((path, j) => {
-        const refHost = session.pathRefs && session.pathRefs[j] ? safeHostname(session.pathRefs[j]) : ''
-        const locTipF = locationTooltip(session.city, session.region, session.country)
+        const refHost = session.pathRefs && session.pathRefs[j] ? escapeHtml(safeHostname(session.pathRefs[j])) : ''
+        const locTipF = escapeHtml(locationTooltip(session.city, session.region, session.country))
       return \`<div class="session-header" onclick="clearFilter()" style="cursor:pointer">\` +
         \`<span class="log-ts" title="\${session.ip || ''}">\${fmtTs(session.pathTs ? session.pathTs[j] : session.ts)}</span>\` +
-        \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${session.city || '?'}</span>\` +
-        \`<span class="log-path" title="\${path}">\${path}</span>\` +
+        \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}</span>\` +
+        \`<span class="log-path" title="\${escapeHtml(path)}">\${escapeHtml(path)}</span>\` +
         \`<span class="log-ref">\${refHost}</span>\` +
         \`</div>\`
       })
@@ -212,12 +223,12 @@ const renderLogs = () => {
   const html = allSessions.slice(0, 999).map(session => {
     const count = session.paths.length
     const firstPath = session.paths[0] || ''
-    const firstRef = session.pathRefs && session.pathRefs[0] ? safeHostname(session.pathRefs[0]) : ''
-    const locTip = locationTooltip(session.city, session.region, session.country)
+    const firstRef = session.pathRefs && session.pathRefs[0] ? escapeHtml(safeHostname(session.pathRefs[0])) : ''
+    const locTip = escapeHtml(locationTooltip(session.city, session.region, session.country))
     return \`<div class="session-header">\` +
       \`<span class="log-ts" title="\${session.ip || ''}">\${fmtTs(session.ts)}</span>\` +
-      \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${session.city || '?'}\${count > 1 ? \` (\${count})\` : ''}</span>\` +
-      \`<span class="log-path" title="\${firstPath}">\${firstPath}</span>\` +
+      \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}\${count > 1 ? \` (\${count})\` : ''}</span>\` +
+      \`<span class="log-path" title="\${escapeHtml(firstPath)}">\${escapeHtml(firstPath)}</span>\` +
       \`<span class="log-ref">\${firstRef}</span>\` +
       \`</div>\`
   }).join('')

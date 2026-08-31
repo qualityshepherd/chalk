@@ -73,12 +73,18 @@ export async function deleteSession (db, token) {
   await db.prepare('DELETE FROM sessions WHERE token=?').bind(hash).run()
 }
 
+// table is interpolated into SQL below - restrict it to a known set so this
+// can't become an injection vector if a future callsite passes it dynamically.
+const RATE_LIMIT_TABLES = new Set(['login_attempts', 'challenge_attempts'])
+
 export async function getRateLimit (db, table, ip) {
+  if (!RATE_LIMIT_TABLES.has(table)) throw new Error('invalid rate limit table')
   const row = await db.prepare(`SELECT count, reset_at FROM ${table} WHERE ip=?`).bind(ip).first()
   return row ? { count: row.count, resetAt: row.reset_at } : null
 }
 
 export async function setRateLimit (db, table, ip, record) {
+  if (!RATE_LIMIT_TABLES.has(table)) throw new Error('invalid rate limit table')
   await db.prepare(
     `INSERT INTO ${table} (ip,count,reset_at) VALUES (?,?,?) ON CONFLICT(ip) DO UPDATE SET count=excluded.count, reset_at=excluded.reset_at`
   ).bind(ip, record.count, record.resetAt).run()

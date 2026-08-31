@@ -9,7 +9,6 @@ CREATE TABLE hits (
   device TEXT,
   referrer TEXT,
   ip_hash TEXT,
-  is_bot INTEGER NOT NULL DEFAULT 0,
   asn INTEGER,
   rss_feed TEXT,
   rss_subs INTEGER
@@ -36,6 +35,12 @@ CREATE TABLE sessions (
 );
 
 CREATE TABLE login_attempts (
+  ip TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  reset_at INTEGER NOT NULL
+);
+
+CREATE TABLE challenge_attempts (
   ip TEXT PRIMARY KEY,
   count INTEGER NOT NULL,
   reset_at INTEGER NOT NULL
