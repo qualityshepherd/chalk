@@ -9,8 +9,7 @@ export default `<!DOCTYPE html>
 </head>
 <body>
 <div class="wrap">
-  <p class="title">analytics</p>
-  <p class="subtitle" id="hostname"></p>
+  <p class="title">Chalk</p>
   <nav class="days-nav" id="domain-nav"></nav>
   <nav class="days-nav" id="nav"></nav>
   <div class="summary" id="summary"></div>
@@ -68,8 +67,6 @@ const escapeHtml = (str) => String(str)
 // instead of repeating the same '&& region !== "?"' at every callsite.
 const locationTooltip = (city, region, countryCode) =>
   [city, region && region !== '?' ? region : null, countryName(countryCode)].filter(Boolean).join(', ')
-
-document.getElementById('hostname').textContent = location.hostname
 
 const renderDaysNav = (domain) => {
   document.getElementById('nav').innerHTML = [1, 2, 7, 30, 365].map(dayCount => {

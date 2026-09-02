@@ -7,7 +7,6 @@
 body{font-size:1.1rem;background:var(--bg-darkest);color:var(--text);font-family:Inter,Arial,sans-serif;line-height:1.6}
 .wrap{max-width:720px;margin:0 auto;padding:2rem 1rem}
 .title{font-family:chalk;font-size:2rem;color:var(--header);letter-spacing:.03em}
-.subtitle{color:var(--alt1);font-size:0.95rem;margin-bottom:0}
 .days-nav{display:flex;gap:1.5rem;margin:1rem 0 2rem;flex-wrap:wrap}
 .days-nav a{color:var(--alt1);text-decoration:none}.days-nav a.active,.days-nav a:hover{color:var(--alt3)}
 .summary{display:flex;flex-wrap:wrap;gap:1.5rem 2rem;margin:1rem 0 2rem}
