@@ -9,6 +9,9 @@ export async function insertHit (db, hit) {
     hit.ip_hash || null, hit.asn || null,
     hit.rss_feed || null, hit.rss_subs || null
   ).run()
+  // Keeps the domain nav's source cheap - getDomains() reads this instead of
+  // scanning the full (unboundedly growing) hits table on every dashboard load.
+  await db.prepare('INSERT OR IGNORE INTO domains (domain) VALUES (?)').bind(hit.domain).run()
 }
 
 export async function incrementBotCount (db, domain, date) {
@@ -33,7 +36,7 @@ export async function queryBotCounts (db, domain, sinceDate) {
 
 export async function getDomains (db) {
   const { results } = await db.prepare(
-    'SELECT DISTINCT domain FROM hits ORDER BY domain'
+    'SELECT domain FROM domains ORDER BY domain'
   ).all()
   return results.map(r => r.domain)
 }

@@ -1,11 +1,12 @@
 @font-face{font-family:header;src:url(/assets/fonts/Oswald-Regular.ttf) format(truetype)}
+@font-face{font-family:chalk;src:url(/assets/fonts/RockSalt-Regular.ttf) format(truetype)}
 @font-face{font-family:Inter;src:url(/assets/fonts/Inter-Regular.woff2) format(woff2)}
 @font-face{font-family:mono;src:url(/assets/fonts/intelone-mono-font-family-regular.otf) format(opentype)}
 :root{--bg-darkest:#222;--text:#A0A0A2;--header:#79808A;--alt1:#79808A;--alt3:#957A65}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-size:1.1rem;background:var(--bg-darkest);color:var(--text);font-family:Inter,Arial,sans-serif;line-height:1.6}
 .wrap{max-width:720px;margin:0 auto;padding:2rem 1rem}
-.title{font-family:header;font-size:2rem;color:var(--header);text-transform:uppercase;letter-spacing:.05em}
+.title{font-family:chalk;font-size:2rem;color:var(--header);letter-spacing:.03em}
 .subtitle{color:var(--alt1);font-size:0.95rem;margin-bottom:0}
 .days-nav{display:flex;gap:1.5rem;margin:1rem 0 2rem;flex-wrap:wrap}
 .days-nav a{color:var(--alt1);text-decoration:none}.days-nav a.active,.days-nav a:hover{color:var(--alt3)}
