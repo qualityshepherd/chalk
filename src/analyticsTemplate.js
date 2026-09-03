@@ -192,6 +192,22 @@ const aggregate = (allData) => {
 let activeIp = null
 let allSessions = []
 
+// Referrers are rare and mostly noise on a per-hit basis too - a receipt
+// icon (only rendered when one exists) beats reserving a wide column that's
+// empty on almost every row, and gives that space back to path.
+const refIcon = (rawRef) => rawRef
+  ? \`<span class="log-ref has-tip" data-ref="\${escapeHtml(rawRef)}" onclick="event.stopPropagation();copyRef(this)" title="click to copy">🧾<div class="tip">\${escapeHtml(rawRef)}</div></span>\`
+  : \`<span class="log-ref"></span>\`
+
+window.copyRef = (el) => {
+  navigator.clipboard.writeText(el.dataset.ref).catch(() => {})
+  const tip = el.querySelector('.tip')
+  if (!tip) return
+  const original = tip.textContent
+  tip.textContent = 'copied!'
+  setTimeout(() => { tip.textContent = original }, 1000)
+}
+
 const renderLogs = () => {
   const filterBar = document.getElementById('filter-bar')
 
@@ -203,13 +219,12 @@ const renderLogs = () => {
     const html = sessions.flatMap(session =>
       session.paths.map((path, j) => {
         const rawRef = session.pathRefs && session.pathRefs[j] ? session.pathRefs[j] : ''
-        const refHost = rawRef ? escapeHtml(safeHostname(rawRef)) : ''
         const locTipF = escapeHtml(locationTooltip(session.city, session.region, session.country))
       return \`<div class="session-header" onclick="clearFilter()" style="cursor:pointer">\` +
         \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.pathTs ? session.pathTs[j] : session.ts)}</span>\` +
         \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}</span>\` +
         \`<span class="log-path" title="\${escapeHtml(path)}">\${escapeHtml(path)}</span>\` +
-        \`<span class="log-ref" title="\${escapeHtml(rawRef)}">\${refHost}</span>\` +
+        refIcon(rawRef) +
         \`</div>\`
       })
     ).join('')
@@ -222,13 +237,12 @@ const renderLogs = () => {
     const count = session.paths.length
     const firstPath = session.paths[0] || ''
     const firstRawRef = session.pathRefs && session.pathRefs[0] ? session.pathRefs[0] : ''
-    const firstRef = firstRawRef ? escapeHtml(safeHostname(firstRawRef)) : ''
     const locTip = escapeHtml(locationTooltip(session.city, session.region, session.country))
     return \`<div class="session-header">\` +
       \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.ts)}</span>\` +
       \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}\${count > 1 ? \` (\${count})\` : ''}</span>\` +
       \`<span class="log-path" title="\${escapeHtml(firstPath)}">\${escapeHtml(firstPath)}</span>\` +
-      \`<span class="log-ref" title="\${escapeHtml(firstRawRef)}">\${firstRef}</span>\` +
+      refIcon(firstRawRef) +
       \`</div>\`
   }).join('')
   document.getElementById('logs').innerHTML = html ? \`<h2>recent hits</h2>\${html}\` : ''
