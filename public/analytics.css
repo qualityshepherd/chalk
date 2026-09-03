@@ -42,6 +42,7 @@ h2{margin:2rem 0 .75rem;font-size:0.95rem;color:var(--alt1);letter-spacing:.15em
 .filter-bar span{color:var(--alt3)}
 .filter-bar a{color:var(--alt1);cursor:pointer;text-decoration:underline}
 .has-tip{position:relative;cursor:default}
+h2 .has-tip{margin-left:.5rem;font-size:80%}
 .has-tip .tip{display:none;position:absolute;top:calc(100% + .35rem);right:0;background:#1a1a1a;border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:.3rem .5rem;white-space:nowrap;font-size:70%;font-family:mono;color:var(--text);z-index:10;pointer-events:none}
 .has-tip:hover .tip{display:block}
 .tip-row{display:flex;gap:.75rem;justify-content:space-between;padding:.05rem 0}

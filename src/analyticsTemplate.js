@@ -256,6 +256,13 @@ const render = (allData) => {
       }).join('')
     : \`<div class="tip-row"><span>no rss hits yet</span></div>\`
 
+  // Referrers are sparse and mostly noise (a couple of hits, if any) - not
+  // worth a whole dedicated section next to paths/countries, which are
+  // always populated and more interesting. Tucked into a tooltip instead.
+  const refsTip = topRefs.length
+    ? topRefs.map(([host, count]) => \`<div class="tip-row"><span>\${escapeHtml(host)}</span><strong>\${count}</strong></div>\`).join('')
+    : \`<div class="tip-row"><span>no referrers yet</span></div>\`
+
   const totalDevices = stats.byDevice.mobile + stats.byDevice.desktop
   const mobilePct = totalDevices > 0 ? Math.round((stats.byDevice.mobile / totalDevices) * 100) : null
 
@@ -273,10 +280,9 @@ const render = (allData) => {
 
   document.getElementById('charts').innerHTML =
     \`<div class="charts-grid">\` +
-      \`<div><h2>top paths</h2><div>\${bars(topPaths)}</div></div>\` +
+      \`<div><h2>top paths <span class="has-tip" title="referrers">🧾<div class="tip">\${refsTip}</div></span></h2><div>\${bars(topPaths)}</div></div>\` +
       \`<div><h2>top countries</h2><div>\${bars(topCountries, true)}</div></div>\` +
-    \`</div>\` +
-    \`<h2>top referrers</h2><div>\${bars(topRefs)}</div>\`
+    \`</div>\`
 
   renderLogs()
 }
