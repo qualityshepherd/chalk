@@ -55,7 +55,7 @@ async function handleHit (req, env) {
   let payload
   try { payload = await req.json() } catch { return new Response('bad request', { status: 400 }) }
 
-  const { domain, path, country, city, region, referrer, asn, ua, ip, rss_feed: rssFeed, ts } = payload
+  const { domain, path, country, city, region, referrer, asn, ua, ip, rss_feed: rssFeed, ts, as_organization: asOrganization, http_protocol: httpProtocol } = payload
   if (!domain || !path || !ip) return new Response('bad request', { status: 400 })
 
   const timestamp = ts || Date.now()
@@ -87,7 +87,9 @@ async function handleHit (req, env) {
     ip_hash: ipHash,
     asn,
     rss_feed: rssFeed || null,
-    rss_subs: rss ? rss.subscribers : null
+    rss_subs: rss ? rss.subscribers : null,
+    as_organization: asOrganization,
+    http_protocol: httpProtocol
   }).catch(() => {})
 
   return new Response('ok')
@@ -177,7 +179,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
     }
     day.byDevice[hit.device || 'desktop'] = (day.byDevice[hit.device || 'desktop'] || 0) + 1
     if (day.recentHits.length < 100) {
-      day.recentHits.push({ ts: hit.ts, path: hit.path, country: hit.country, region: hit.region, city: hit.city, ip: hit.ip_hash, referrer: hit.referrer, device: hit.device })
+      day.recentHits.push({ ts: hit.ts, path: hit.path, country: hit.country, region: hit.region, city: hit.city, ip: hit.ip_hash, referrer: hit.referrer, device: hit.device, asn: hit.asn, asOrganization: hit.as_organization, httpProtocol: hit.http_protocol })
     }
   }
 

@@ -2,12 +2,13 @@ import { isSessionExpired, isNonceExpired, hashToken } from './auth.js'
 
 export async function insertHit (db, hit) {
   await db.prepare(
-    'INSERT INTO hits (domain, ts, path, country, city, region, device, referrer, ip_hash, asn, rss_feed, rss_subs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+    'INSERT INTO hits (domain, ts, path, country, city, region, device, referrer, ip_hash, asn, rss_feed, rss_subs, as_organization, http_protocol) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).bind(
     hit.domain, hit.ts, hit.path, hit.country || null, hit.city || null,
     hit.region || null, hit.device || null, hit.referrer || null,
     hit.ip_hash || null, hit.asn || null,
-    hit.rss_feed || null, hit.rss_subs || null
+    hit.rss_feed || null, hit.rss_subs || null,
+    hit.as_organization || null, hit.http_protocol || null
   ).run()
   // Keeps the domain nav's source cheap - getDomains() reads this instead of
   // scanning the full (unboundedly growing) hits table on every dashboard load.
@@ -22,7 +23,7 @@ export async function incrementBotCount (db, domain, date) {
 
 export async function queryHits (db, domain, since) {
   const { results } = await db.prepare(
-    'SELECT ts, path, country, city, region, device, referrer, ip_hash, asn, rss_feed, rss_subs FROM hits WHERE domain=? AND ts>=? ORDER BY ts DESC LIMIT 20000'
+    'SELECT ts, path, country, city, region, device, referrer, ip_hash, asn, rss_feed, rss_subs, as_organization, http_protocol FROM hits WHERE domain=? AND ts>=? ORDER BY ts DESC LIMIT 20000'
   ).bind(domain, since).all()
   return results
 }

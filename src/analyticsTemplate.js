@@ -146,13 +146,19 @@ const groupSessions = (hits) => {
       const withinGap = session && (hit.ts - session.lastTs <= SESSION_GAP)
       const inSession = days === 1 ? withinGap : sameDay
       if (!session || !inSession) {
-        session = { ts: hit.ts, lastTs: hit.ts, ip: hit.ip, country: hit.country, region: hit.region, city: hit.city, referrer: hit.referrer || '', paths: [], pathTs: [], pathRefs: [] }
+        session = { ts: hit.ts, lastTs: hit.ts, ip: hit.ip, country: hit.country, region: hit.region, city: hit.city, referrer: hit.referrer || '', hits: [] }
         sessions.push(session)
       }
       session.lastTs = hit.ts
-      session.paths.push(hit.path)
-      session.pathTs.push(hit.ts)
-      session.pathRefs.push(hit.referrer || '')
+      session.hits.push({
+        path: hit.path,
+        ts: hit.ts,
+        referrer: hit.referrer || '',
+        device: hit.device || '',
+        asn: hit.asn || '',
+        asOrganization: hit.asOrganization || '',
+        httpProtocol: hit.httpProtocol || ''
+      })
     }
   }
   sessions.sort((a, b) => b.ts - a.ts)
@@ -192,12 +198,56 @@ const aggregate = (allData) => {
 let activeIp = null
 let allSessions = []
 
-// Referrers are rare and mostly noise on a per-hit basis too - a receipt
-// icon (only rendered when one exists) beats reserving a wide column that's
-// empty on almost every row, and gives that space back to path.
-const refIcon = (rawRef) => rawRef
-  ? \`<span class="log-ref has-tip" data-ref="\${escapeHtml(rawRef)}" onclick="event.stopPropagation();copyRef(this)" title="click to copy">🧾<div class="tip">\${escapeHtml(rawRef)}</div></span>\`
-  : \`<span class="log-ref"></span>\`
+// Not proof of anything - every hit shown here already cleared the
+// ingestion-time bot/datacenter filter, so "0 signals" means unscored, not
+// "probably bot". A match is extra confidence; silence is never suspicion.
+// Coverage is necessarily US/EU-carrier-heavy since that's what's
+// nameable by hand - a real human on a smaller regional ISP just won't
+// match, and that's a known blind spot, not a judgment about them.
+const RESIDENTIAL_ORGS = [
+  'comcast', 'xfinity', 'at&t', 'verizon', 'charter', 'spectrum', 'cox communications',
+  't-mobile', 'sprint', 'vodafone', 'deutsche telekom', 'orange', 'telefonica',
+  'bt group', 'virgin media', 'sky broadband', 'telstra', 'rogers communications',
+  'bell canada', 'telus', 'ntt docomo', 'softbank', 'china mobile', 'china telecom',
+  'china unicom', 'reliance jio', 'bharti airtel'
+]
+
+const HUMAN_DETECTORS = [
+  // Bots overwhelmingly run on server infrastructure, not real phones.
+  { name: 'mobile', test: (hit) => hit.device === 'mobile' },
+  // Cloudflare's free-tier asOrganization gives the ASN's owner by name,
+  // not just a number - matching known residential/mobile-carrier orgs
+  // beats trying to hardcode and verify exact ASN integers.
+  { name: 'residentialIsp', test: (hit) => !!hit.asOrganization && RESIDENTIAL_ORGS.some((org) => hit.asOrganization.toLowerCase().includes(org)) },
+  // Real browsers negotiate HTTP/2 or HTTP/3 with Cloudflare's edge by
+  // default; basic scripted clients often don't bother. Weak on its own.
+  { name: 'modernProtocol', test: (hit) => hit.httpProtocol === 'HTTP/2' || hit.httpProtocol === 'HTTP/3' }
+]
+
+const humanScore = (hit) => HUMAN_DETECTORS.filter((d) => d.test(hit)).length
+
+// Single-tone (currentColor) outline, not an emoji - a smiley rendered as a
+// colorful pictograph would clash the same way the receipt emoji did.
+// Regular for one signal, bolder stroke + bigger grin once two or more
+// stack up - the score should read as "more confident," not just "present."
+const smileyIcon = (bold) => bold
+  ? '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" fill="none"/><circle cx="8.5" cy="10" r="1.3" fill="currentColor"/><circle cx="15.5" cy="10" r="1.3" fill="currentColor"/><path d="M6.5 13.5 Q12 20 17.5 13.5" stroke="currentColor" stroke-width="2.75" fill="none" stroke-linecap="round"/></svg>'
+  : '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor"/><circle cx="15.5" cy="10" r="1.1" fill="currentColor"/><path d="M7.5 14.5 Q12 18.5 16.5 14.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>'
+
+// Referrers are rare and mostly noise on a per-hit basis too - a small icon
+// (only rendered when one exists) beats reserving a wide column that's empty
+// on almost every row, and gives that space back to path. The human-signal
+// smiley shares the same reclaimed column rather than getting its own.
+const extrasCell = (hit, rawRef) => {
+  const score = humanScore(hit)
+  const smiley = score > 0
+    ? \`<span title="\${score} human signal\${score > 1 ? 's' : ''}">\${smileyIcon(score >= 2)}</span>\`
+    : ''
+  const ref = rawRef
+    ? \`<span class="has-tip" data-ref="\${escapeHtml(rawRef)}" onclick="event.stopPropagation();copyRef(this)" title="click to copy">↗<div class="tip">\${escapeHtml(rawRef)}</div></span>\`
+    : ''
+  return \`<span class="log-ref">\${smiley}\${ref}</span>\`
+}
 
 window.copyRef = (el) => {
   navigator.clipboard.writeText(el.dataset.ref).catch(() => {})
@@ -217,14 +267,14 @@ const renderLogs = () => {
     const ref = session && session.referrer ? escapeHtml(safeHostname(session.referrer)) : ''
     filterBar.innerHTML = session ? \`<span onclick="clearFilter()" style="cursor:pointer">\${flagWithRegion(session.country, session.region)} \${escapeHtml(session.city || '?')}\${ref ? \` · \${ref}\` : ''} <a>✕ clear</a></span>\` : ''
     const html = sessions.flatMap(session =>
-      session.paths.map((path, j) => {
-        const rawRef = session.pathRefs && session.pathRefs[j] ? session.pathRefs[j] : ''
+      session.hits.map((hit) => {
         const locTipF = escapeHtml(locationTooltip(session.city, session.region, session.country))
+        const ipTip = escapeHtml((session.ip || '') + (hit.asn ? \` · AS\${hit.asn}\` : ''))
       return \`<div class="session-header" onclick="clearFilter()" style="cursor:pointer">\` +
-        \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.pathTs ? session.pathTs[j] : session.ts)}</span>\` +
+        \`<span class="log-ts" title="\${ipTip}">\${fmtTs(hit.ts)}</span>\` +
         \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}</span>\` +
-        \`<span class="log-path" title="\${escapeHtml(path)}">\${escapeHtml(path)}</span>\` +
-        refIcon(rawRef) +
+        \`<span class="log-path" title="\${escapeHtml(hit.path)}">\${escapeHtml(hit.path)}</span>\` +
+        extrasCell(hit, hit.referrer) +
         \`</div>\`
       })
     ).join('')
@@ -234,15 +284,15 @@ const renderLogs = () => {
 
   filterBar.innerHTML = ''
   const html = allSessions.slice(0, 999).map(session => {
-    const count = session.paths.length
-    const firstPath = session.paths[0] || ''
-    const firstRawRef = session.pathRefs && session.pathRefs[0] ? session.pathRefs[0] : ''
+    const count = session.hits.length
+    const firstHit = session.hits[0] || { path: '', ts: session.ts }
     const locTip = escapeHtml(locationTooltip(session.city, session.region, session.country))
+    const ipTip = escapeHtml((session.ip || '') + (firstHit.asn ? \` · AS\${firstHit.asn}\` : ''))
     return \`<div class="session-header">\` +
-      \`<span class="log-ts" title="\${escapeHtml(session.ip || '')}">\${fmtTs(session.ts)}</span>\` +
+      \`<span class="log-ts" title="\${ipTip}">\${fmtTs(session.ts)}</span>\` +
       \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}\${count > 1 ? \` (\${count})\` : ''}</span>\` +
-      \`<span class="log-path" title="\${escapeHtml(firstPath)}">\${escapeHtml(firstPath)}</span>\` +
-      refIcon(firstRawRef) +
+      \`<span class="log-path" title="\${escapeHtml(firstHit.path)}">\${escapeHtml(firstHit.path)}</span>\` +
+      extrasCell(firstHit, firstHit.referrer) +
       \`</div>\`
   }).join('')
   document.getElementById('logs').innerHTML = html ? \`<h2>recent hits</h2>\${html}\` : ''
@@ -294,7 +344,7 @@ const render = (allData) => {
 
   document.getElementById('charts').innerHTML =
     \`<div class="charts-grid">\` +
-      \`<div><h2>top paths <span class="has-tip" title="referrers">🧾<div class="tip">\${refsTip}</div></span></h2><div>\${bars(topPaths)}</div></div>\` +
+      \`<div><h2>top paths <span class="has-tip" title="referrers">↗<div class="tip">\${refsTip}</div></span></h2><div>\${bars(topPaths)}</div></div>\` +
       \`<div><h2>top countries</h2><div>\${bars(topCountries, true)}</div></div>\` +
     \`</div>\`
 
