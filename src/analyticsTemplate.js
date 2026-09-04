@@ -214,39 +214,43 @@ const RESIDENTIAL_ORGS = [
 
 const HUMAN_DETECTORS = [
   // Bots overwhelmingly run on server infrastructure, not real phones.
-  { name: 'mobile', test: (hit) => hit.device === 'mobile' },
+  { name: 'mobile', test: (hit) => hit.device === 'mobile', label: () => 'mobile' },
   // Cloudflare's free-tier asOrganization gives the ASN's owner by name,
   // not just a number - matching known residential/mobile-carrier orgs
-  // beats trying to hardcode and verify exact ASN integers.
-  { name: 'residentialIsp', test: (hit) => !!hit.asOrganization && RESIDENTIAL_ORGS.some((org) => hit.asOrganization.toLowerCase().includes(org)) },
+  // beats trying to hardcode and verify exact ASN integers. Labeling with
+  // the actual org name, not just "residential ISP" - naming it is more
+  // convincing (and more fun) than a generic category.
+  { name: 'residentialIsp', test: (hit) => !!hit.asOrganization && RESIDENTIAL_ORGS.some((org) => hit.asOrganization.toLowerCase().includes(org)), label: (hit) => hit.asOrganization },
   // Real browsers negotiate HTTP/2 or HTTP/3 with Cloudflare's edge by
   // default; basic scripted clients often don't bother. Weak on its own.
-  { name: 'modernProtocol', test: (hit) => hit.httpProtocol === 'HTTP/2' || hit.httpProtocol === 'HTTP/3' }
+  { name: 'modernProtocol', test: (hit) => hit.httpProtocol === 'HTTP/2' || hit.httpProtocol === 'HTTP/3', label: (hit) => hit.httpProtocol }
 ]
 
-const humanScore = (hit) => HUMAN_DETECTORS.filter((d) => d.test(hit)).length
+const humanSignals = (hit) => HUMAN_DETECTORS.filter((d) => d.test(hit)).map((d) => d.label(hit))
 
 // Single-tone (currentColor) outline, not an emoji - a smiley rendered as a
-// colorful pictograph would clash the same way the receipt emoji did.
-// Regular for one signal, bolder stroke + bigger grin once two or more
-// stack up - the score should read as "more confident," not just "present."
-const smileyIcon = (bold) => bold
-  ? '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" fill="none"/><circle cx="8.5" cy="10" r="1.3" fill="currentColor"/><circle cx="15.5" cy="10" r="1.3" fill="currentColor"/><path d="M6.5 13.5 Q12 20 17.5 13.5" stroke="currentColor" stroke-width="2.75" fill="none" stroke-linecap="round"/></svg>'
-  : '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor"/><circle cx="15.5" cy="10" r="1.1" fill="currentColor"/><path d="M7.5 14.5 Q12 18.5 16.5 14.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>'
+// colorful pictograph would clash the same way the receipt emoji did. One
+// size/weight for both tiers - the accent color (via the .strong class),
+// not a second bolder SVG, is what marks mobile specifically as present.
+const SMILEY_ICON = '<svg viewBox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" fill="none"/><circle cx="8.5" cy="10" r="1.3" fill="currentColor"/><circle cx="15.5" cy="10" r="1.3" fill="currentColor"/><path d="M7.5 14.5 Q12 18.5 16.5 14.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>'
 
 // Referrers are rare and mostly noise on a per-hit basis too - a small icon
 // (only rendered when one exists) beats reserving a wide column that's empty
 // on almost every row, and gives that space back to path. The human-signal
 // smiley shares the same reclaimed column rather than getting its own.
 const extrasCell = (hit, rawRef) => {
-  const score = humanScore(hit)
-  const smiley = score > 0
-    ? \`<span title="\${score} human signal\${score > 1 ? 's' : ''}">\${smileyIcon(score >= 2)}</span>\`
+  const signals = humanSignals(hit)
+  // Accent color means mobile specifically, not "2+ signals of any kind" -
+  // a real ISP plus a modern protocol together isn't proof of anything (a
+  // scraper running on a residential connection clears both), and treating
+  // that combination as stronger evidence than mobile alone was wrong.
+  const smiley = signals.length > 0
+    ? \`<span class="\${signals.includes('mobile') ? 'strong' : ''}" title="\${escapeHtml(signals.join(' + '))}">\${SMILEY_ICON}</span>\`
     : ''
   const ref = rawRef
     ? \`<span class="has-tip" data-ref="\${escapeHtml(rawRef)}" onclick="event.stopPropagation();copyRef(this)" title="click to copy">↗<div class="tip">\${escapeHtml(rawRef)}</div></span>\`
     : ''
-  return \`<span class="log-ref">\${smiley}\${ref}</span>\`
+  return \`<span class="log-ref">\${ref}\${smiley}</span>\`
 }
 
 window.copyRef = (el) => {
@@ -269,7 +273,7 @@ const renderLogs = () => {
     const html = sessions.flatMap(session =>
       session.hits.map((hit) => {
         const locTipF = escapeHtml(locationTooltip(session.city, session.region, session.country))
-        const ipTip = escapeHtml((session.ip || '') + (hit.asn ? \` · AS\${hit.asn}\` : ''))
+        const ipTip = escapeHtml((session.ip || '') + (hit.asn ? \` · AS\${hit.asn}\` : '') + (hit.asOrganization ? \` (\${hit.asOrganization})\` : ''))
       return \`<div class="session-header" onclick="clearFilter()" style="cursor:pointer">\` +
         \`<span class="log-ts" title="\${ipTip}">\${fmtTs(hit.ts)}</span>\` +
         \`<span class="log-city" title="\${locTipF}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTipF)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}</span>\` +
@@ -287,7 +291,7 @@ const renderLogs = () => {
     const count = session.hits.length
     const firstHit = session.hits[0] || { path: '', ts: session.ts }
     const locTip = escapeHtml(locationTooltip(session.city, session.region, session.country))
-    const ipTip = escapeHtml((session.ip || '') + (firstHit.asn ? \` · AS\${firstHit.asn}\` : ''))
+    const ipTip = escapeHtml((session.ip || '') + (firstHit.asn ? \` · AS\${firstHit.asn}\` : '') + (firstHit.asOrganization ? \` (\${firstHit.asOrganization})\` : ''))
     return \`<div class="session-header">\` +
       \`<span class="log-ts" title="\${ipTip}">\${fmtTs(session.ts)}</span>\` +
       \`<span class="log-city\${count > 1 ? ' active' : ''}" \${count > 1 ? \`onclick="filterIp('\${session.ip}')"\` : ''} style="\${count > 1 ? 'cursor:pointer' : ''}" title="\${locTip}">\${session.country ? \`<a href="https://maps.google.com/?q=\${encodeURIComponent(locTip)}" target="_blank" onclick="event.stopPropagation()">\${flagEmoji(session.country)}</a> \` : ''}\${escapeHtml(session.city || '?')}\${count > 1 ? \` (\${count})\` : ''}</span>\` +

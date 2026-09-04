@@ -29,14 +29,15 @@ h2{margin:2rem 0 .75rem;font-size:0.95rem;color:var(--alt1);letter-spacing:.15em
 .heatmap-labels.dow{grid-template-columns:repeat(7,1fr)}
 .heatmap-labels.hour{grid-template-columns:repeat(24,1fr)}
 .heatmap-labels span{font-size:55%;color:var(--alt1);text-align:center;font-family:mono}
-.session-header{display:grid;grid-template-columns:11rem 11rem 1fr 2.5rem;gap:.75rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:92%;font-family:mono}
+.session-header{display:grid;grid-template-columns:11rem 11rem 1fr 4.5rem;gap:.75rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:92%;font-family:mono}
 .session-header:hover .log-city{color:var(--alt3)}
 .log-ts{color:var(--alt1);white-space:nowrap;cursor:default}
 .log-city{color:var(--alt1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .log-city:hover{color:var(--alt3)}
 .log-city.active{color:var(--alt3)}
 .log-path{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.log-ref{display:flex;align-items:center;justify-content:flex-end;gap:.35rem;color:var(--alt1);font-size:85%}
+.log-ref{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;color:var(--alt1);font-size:150%}
+.log-ref .strong{color:var(--alt3)}
 .log-ref .has-tip{cursor:pointer}
 .log-ref .has-tip:hover{color:var(--alt3)}
 .log-count{color:var(--alt1);font-family:mono;text-align:right;white-space:nowrap}
@@ -57,7 +58,6 @@ h2 .has-tip{margin-left:.5rem;font-size:80%}
   .summary strong.long{font-size:1.5rem}
   .charts-grid{grid-template-columns:1fr}
   .heatmap-labels.hour span:nth-child(even){visibility:hidden}
-  .session-header{grid-template-columns:auto 6rem 1fr}
-  .log-ref{display:none}
+  .session-header{grid-template-columns:auto 6rem 1fr 3.5rem}
   .maps{grid-template-columns:1fr}
 }
