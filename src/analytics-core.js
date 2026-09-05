@@ -2,10 +2,10 @@
 
 const BOT_PREFIXES = [
   '/account/', '/api/v1', '/back/', '/bak/', '/billing/', '/cgi-bin/', '/checkout',
-  '/conf.d/', '/donate', '/error/', '/etc/', '/file-upload', '/fileupload',
+  '/conf.d/', '/donate', '/env', '/error/', '/etc/', '/favicon', '/file-upload', '/fileupload',
   '/files/', '/form/', '/import/', '/info', '/ip', '/log/', '/login',
-  '/mcp', '/officialsite', '/old/', '/opt/', '/order/', '/php-cgi', '/phpinfo', '/plans/',
-  '/proc/', '/register', '/rest/', '/restore/', '/root/', '/shop/', '/sse',
+  '/manifest.json', '/mcp', '/officialsite', '/old/', '/opt/', '/order/', '/php-cgi', '/phpinfo', '/plans/',
+  '/proc/', '/register', '/rest/', '/restore/', '/robots.txt', '/root/', '/shop/', '/sitemap', '/sse',
   '/storage/', '/subscribe', '/temp', '/test', '/tmp', '/upload',
   '/v1/', '/v2/', '/v3/', '/var/', '/vendor', '/wallet/', '/webhook/', '/wp-'
 ]
@@ -19,7 +19,7 @@ const BOT_PATHS = [
   'console/', 'credentials', 'debug.log',
   'ediscovery', 'ecp/current', 'graphql',
   'https%3a', 'latest/meta-data', 'login.action',
-  'meta-inf', 'metadata/', 'package.json',
+  'meta-inf', 'metadata/', 'nodeinfo', 'package.json',
   'passwd', 'pom.properties', 'requirements.txt',
   'rest_route=', 'security.txt', 'server-status', 'setup', 'shell',
   'statistics.json', 'swagger', 'telescope',

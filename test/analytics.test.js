@@ -48,6 +48,34 @@ test('isBot: /ip probe is a bot', () => {
   assert.equal(isBot('/ip', 'Mozilla/5.0'), true)
 })
 
+test('isBot: bare /env scanner probe is a bot', () => {
+  assert.equal(isBot('/env', 'Mozilla/5.0'), true)
+})
+
+test('isBot: nodeinfo discovery probes are a bot', () => {
+  assert.equal(isBot('/.well-known/nodeinfo', 'Mozilla/5.0'), true)
+  assert.equal(isBot('/nodeinfo/2.1', 'Mozilla/5.0'), true)
+})
+
+// favicon/robots.txt/sitemap/manifest.json are universal across every site
+// this app forwards hits from - centralized here instead of duplicated in
+// each app's own shouldSkip.
+test('isBot: favicon requests are a bot', () => {
+  assert.equal(isBot('/favicon.ico', 'Mozilla/5.0'), true)
+})
+
+test('isBot: robots.txt is a bot', () => {
+  assert.equal(isBot('/robots.txt', 'Mozilla/5.0'), true)
+})
+
+test('isBot: sitemap requests are a bot', () => {
+  assert.equal(isBot('/sitemap.xml', 'Mozilla/5.0'), true)
+})
+
+test('isBot: manifest.json is a bot', () => {
+  assert.equal(isBot('/manifest.json', 'Mozilla/5.0'), true)
+})
+
 test('isDatacenter: known datacenter ASN returns true', () => {
   assert.equal(isDatacenter(14618), true) // AWS
   assert.equal(isDatacenter(15169), true) // Google Cloud
