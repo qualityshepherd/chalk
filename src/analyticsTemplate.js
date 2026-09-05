@@ -221,6 +221,8 @@ const HUMAN_DETECTORS = [
   // the actual org name, not just "residential ISP" - naming it is more
   // convincing (and more fun) than a generic category.
   { name: 'residentialIsp', test: (hit) => !!hit.asOrganization && RESIDENTIAL_ORGS.some((org) => hit.asOrganization.toLowerCase().includes(org)), label: (hit) => hit.asOrganization },
+  // "Private Relay" is the actually interesting fact, not "Apple Inc".
+  { name: 'privateRelay', test: (hit) => !!hit.asOrganization && hit.asOrganization.toLowerCase().includes('apple'), label: () => 'Private Relay' },
   // Real browsers negotiate HTTP/2 or HTTP/3 with Cloudflare's edge by
   // default; basic scripted clients often don't bother. Weak on its own.
   { name: 'modernProtocol', test: (hit) => hit.httpProtocol === 'HTTP/2' || hit.httpProtocol === 'HTTP/3', label: (hit) => hit.httpProtocol }
