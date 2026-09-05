@@ -209,7 +209,7 @@ const RESIDENTIAL_ORGS = [
   't-mobile', 'sprint', 'vodafone', 'deutsche telekom', 'orange', 'telefonica',
   'bt group', 'virgin media', 'sky broadband', 'telstra', 'rogers communications',
   'bell canada', 'telus', 'ntt docomo', 'softbank', 'china mobile', 'china telecom',
-  'china unicom', 'reliance jio', 'bharti airtel'
+  'china unicom', 'reliance jio', 'bharti airtel', 'fastweb'
 ]
 
 const HUMAN_DETECTORS = [

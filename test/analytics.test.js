@@ -51,6 +51,7 @@ test('isBot: /ip probe is a bot', () => {
 test('isDatacenter: known datacenter ASN returns true', () => {
   assert.equal(isDatacenter(14618), true) // AWS
   assert.equal(isDatacenter(15169), true) // Google Cloud
+  assert.equal(isDatacenter(136907), true) // Huawei Cloud
 })
 
 test('isDatacenter: unknown ASN returns false', () => {

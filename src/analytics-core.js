@@ -45,7 +45,21 @@ const BOT_ASNS = new Set([
   9009, // M247 (Romanian provider, tons of scanner traffic)
   63949, // Linode/Akamai
   211590, // Scaleway - Paris scanner
-  396982 // Google Cloud
+  396982, // Google Cloud
+  136907, // Huawei Cloud (Singapore)
+  45090, // Tencent Cloud
+  400940, // Railway (app hosting platform)
+  47583, // Hostinger
+  136557, // Host Universal
+  205544, // Leaseweb
+  197540, // netcup
+  53667, // FranTech Solutions (BuyVM)
+  12574, // Hosting.de
+  202422, // G-Core Labs
+  140641, // Cloudtechtiq Technologies
+  34343, // Base IP B.V.
+  23033, // Wowrack.com
+  209366 // SEMrush (SEO crawler)
 ])
 
 // Known RSS aggregator UA patterns that include subscriber counts
