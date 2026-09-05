@@ -222,10 +222,12 @@ const HUMAN_DETECTORS = [
   // convincing (and more fun) than a generic category.
   { name: 'residentialIsp', test: (hit) => !!hit.asOrganization && RESIDENTIAL_ORGS.some((org) => hit.asOrganization.toLowerCase().includes(org)), label: (hit) => hit.asOrganization },
   // "Private Relay" is the actually interesting fact, not "Apple Inc".
-  { name: 'privateRelay', test: (hit) => !!hit.asOrganization && hit.asOrganization.toLowerCase().includes('apple'), label: () => 'Private Relay' },
-  // Real browsers negotiate HTTP/2 or HTTP/3 with Cloudflare's edge by
-  // default; basic scripted clients often don't bother. Weak on its own.
-  { name: 'modernProtocol', test: (hit) => hit.httpProtocol === 'HTTP/2' || hit.httpProtocol === 'HTTP/3', label: (hit) => hit.httpProtocol }
+  { name: 'privateRelay', test: (hit) => !!hit.asOrganization && hit.asOrganization.toLowerCase().includes('apple'), label: () => 'Private Relay' }
+  // Dropped modernProtocol (HTTP/2 or HTTP/3): table stakes for real
+  // browsers, but also the default for a lot of bot tooling now (Go's
+  // net/http negotiates HTTP/2 with no config, headless browsers are full
+  // HTTP/2+) - only ever excluded the laziest scripts, and diluted the
+  // tooltip with a chip that's true for almost anyone.
 ]
 
 const humanSignals = (hit) => HUMAN_DETECTORS.filter((d) => d.test(hit)).map((d) => d.label(hit))
