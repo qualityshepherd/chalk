@@ -1,9 +1,10 @@
 {
   "name": "chalk",
+  "author": "brine",
   "version": "0.1.0",
   "description": "Shared analytics service for brine.dev properties",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
-  "private": true,
   "scripts": {
     "test": "node --test test/*.test.js && npx standard .",
     "deploy": "wrangler deploy",
