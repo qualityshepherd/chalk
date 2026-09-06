@@ -236,23 +236,38 @@ const humanSignals = (hit) => HUMAN_DETECTORS.filter((d) => d.test(hit)).map((d)
 // not a second bolder SVG, is what marks mobile specifically as present.
 const SMILEY_ICON = '<svg viewBox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" fill="none"/><circle cx="8.5" cy="10" r="1.3" fill="currentColor"/><circle cx="15.5" cy="10" r="1.3" fill="currentColor"/><path d="M7.5 14.5 Q12 18.5 16.5 14.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>'
 
+// Same outline weight/size as SMILEY_ICON but a square "digital" face with
+// a flat mouth - deliberately distinct from the human smiley rather than a
+// colored/emphasized variant of it, since this is the opposite polarity
+// (evidence toward bot, computed behaviorally server-side, not per-hit).
+const BOT_ICON = '<svg viewBox="0 0 24 24" width="17" height="17"><rect x="4" y="6" width="16" height="13" rx="2" stroke="currentColor" stroke-width="2.5" fill="none"/><rect x="8" y="10.5" width="2.6" height="2.6" fill="currentColor"/><rect x="13.4" y="10.5" width="2.6" height="2.6" fill="currentColor"/><line x1="8" y1="15.5" x2="16" y2="15.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>'
+
 // Referrers are rare and mostly noise on a per-hit basis too - a small icon
 // (only rendered when one exists) beats reserving a wide column that's empty
 // on almost every row, and gives that space back to path. The human-signal
 // smiley shares the same reclaimed column rather than getting its own.
 const extrasCell = (hit, rawRef) => {
-  const signals = humanSignals(hit)
-  // Accent color means mobile specifically, not "2+ signals of any kind" -
-  // a real ISP plus a modern protocol together isn't proof of anything (a
-  // scraper running on a residential connection clears both), and treating
-  // that combination as stronger evidence than mobile alone was wrong.
-  const smiley = signals.length > 0
-    ? \`<span class="\${signals.includes('mobile') ? 'strong' : ''}" title="\${escapeHtml(signals.join(' + '))}">\${SMILEY_ICON}</span>\`
-    : ''
+  // Behavioral bot detection (server-computed, see chalk's analytics-core.js
+  // BOT_DETECTORS) is stronger evidence than any per-hit isHuman signal, so
+  // it replaces the smiley outright rather than showing both - "probably
+  // human" and "probably bot" on the same row would just be confusing.
+  let face = ''
+  if (hit.botFlagged) {
+    face = \`<span title="Behavioral bot detection: rapid multi-page crawl or repeated 404s within 30 seconds">\${BOT_ICON}</span>\`
+  } else {
+    const signals = humanSignals(hit)
+    // Accent color means mobile specifically, not "2+ signals of any kind" -
+    // a real ISP plus a modern protocol together isn't proof of anything (a
+    // scraper running on a residential connection clears both), and treating
+    // that combination as stronger evidence than mobile alone was wrong.
+    if (signals.length > 0) {
+      face = \`<span class="\${signals.includes('mobile') ? 'strong' : ''}" title="\${escapeHtml(signals.join(' + '))}">\${SMILEY_ICON}</span>\`
+    }
+  }
   const ref = rawRef
     ? \`<span class="has-tip" data-ref="\${escapeHtml(rawRef)}" onclick="event.stopPropagation();copyRef(this)" title="click to copy">↗<div class="tip">\${escapeHtml(rawRef)}</div></span>\`
     : ''
-  return \`<span class="log-ref">\${ref}\${smiley}</span>\`
+  return \`<span class="log-ref">\${ref}\${face}</span>\`
 }
 
 window.copyRef = (el) => {

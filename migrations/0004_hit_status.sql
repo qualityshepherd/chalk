@@ -1,0 +1,1 @@
+ALTER TABLE hits ADD COLUMN status INTEGER;

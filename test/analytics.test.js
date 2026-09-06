@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers } from '../src/analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps } from '../src/analytics-core.js'
 
 test('isBot: wp-login is a bot', () => {
   assert.equal(isBot('/wp-login.php', 'Mozilla/5.0'), true)
@@ -129,4 +129,143 @@ test('parseRssSubscribers: unknown UA returns null', () => {
 
 test('parseRssSubscribers: empty UA returns null', () => {
   assert.equal(parseRssSubscribers(''), null)
+})
+
+// sanitizeHitPayload: status field
+const basePayload = { domain: 'example.com', path: '/', ip: '1.2.3.4' }
+
+test('sanitizeHitPayload: accepts a valid status code', () => {
+  const hit = sanitizeHitPayload({ ...basePayload, status: 404 })
+  assert.equal(hit.status, 404)
+})
+
+test('sanitizeHitPayload: rejects a non-integer status', () => {
+  const hit = sanitizeHitPayload({ ...basePayload, status: '404' })
+  assert.equal(hit.status, undefined)
+})
+
+test('sanitizeHitPayload: rejects an out-of-range status', () => {
+  const hit = sanitizeHitPayload({ ...basePayload, status: 99 })
+  assert.equal(hit.status, undefined)
+  assert.equal(sanitizeHitPayload({ ...basePayload, status: 600 }).status, undefined)
+})
+
+test('sanitizeHitPayload: missing status is fine', () => {
+  const hit = sanitizeHitPayload(basePayload)
+  assert.equal(hit.status, undefined)
+})
+
+// botSignals / BOT_DETECTORS - pathVelocity
+const hitAt = (ts, path, status = 200) => ({ ts, path, status })
+
+test('botSignals: 4 distinct paths within 30s is flagged', () => {
+  const hits = [
+    hitAt(0, '/now'), hitAt(5000, '/friends'), hitAt(10000, '/ideas'), hitAt(15000, '/uses')
+  ]
+  assert.deepEqual(botSignals(hits), ['rapid multi-page crawl'])
+})
+
+test('botSignals: same path repeated many times is NOT flagged (Rando reroll case)', () => {
+  const hits = Array.from({ length: 10 }, (_, i) => hitAt(i * 1000, '/'))
+  assert.deepEqual(botSignals(hits), [])
+})
+
+test('botSignals: 4 distinct paths spread across more than 30s is NOT flagged', () => {
+  const hits = [
+    hitAt(0, '/now'), hitAt(15000, '/friends'), hitAt(35000, '/ideas'), hitAt(50000, '/uses')
+  ]
+  assert.deepEqual(botSignals(hits), [])
+})
+
+test('botSignals: 3 distinct paths within 30s is NOT enough', () => {
+  const hits = [hitAt(0, '/now'), hitAt(5000, '/friends'), hitAt(10000, '/ideas')]
+  assert.deepEqual(botSignals(hits), [])
+})
+
+// botSignals / BOT_DETECTORS - repeated404
+test('botSignals: same path 404ing 4 times within 30s is flagged', () => {
+  const hits = [hitAt(0, '/dead', 404), hitAt(5000, '/dead', 404), hitAt(10000, '/dead', 404), hitAt(15000, '/dead', 404)]
+  assert.deepEqual(botSignals(hits), ['404 retry loop'])
+})
+
+test('botSignals: same path reloaded 4 times with 200 is NOT flagged', () => {
+  const hits = [hitAt(0, '/', 200), hitAt(5000, '/', 200), hitAt(10000, '/', 200), hitAt(15000, '/', 200)]
+  assert.deepEqual(botSignals(hits), [])
+})
+
+test('botSignals: both detectors can fire together', () => {
+  const hits = [
+    hitAt(0, '/a', 404), hitAt(1000, '/a', 404), hitAt(2000, '/a', 404), hitAt(3000, '/a', 404),
+    hitAt(4000, '/b'), hitAt(5000, '/c'), hitAt(6000, '/d')
+  ]
+  assert.deepEqual(botSignals(hits), ['rapid multi-page crawl', '404 retry loop'])
+})
+
+// getBotFlaggedIps
+test('getBotFlaggedIps: flags only the IP matching a burst pattern', () => {
+  const hits = [
+    { ip_hash: 'bot-ip', ...hitAt(0, '/now') },
+    { ip_hash: 'bot-ip', ...hitAt(5000, '/friends') },
+    { ip_hash: 'bot-ip', ...hitAt(10000, '/ideas') },
+    { ip_hash: 'bot-ip', ...hitAt(15000, '/uses') },
+    { ip_hash: 'human-ip', ...hitAt(0, '/') },
+    { ip_hash: 'human-ip', ...hitAt(20000, '/about') }
+  ]
+  const flagged = getBotFlaggedIps(hits)
+  assert.equal(flagged.has('bot-ip'), true)
+  assert.equal(flagged.has('human-ip'), false)
+})
+
+test('getBotFlaggedIps: hits are grouped and sorted per IP regardless of input order', () => {
+  const hits = [
+    { ip_hash: 'bot-ip', ...hitAt(15000, '/uses') },
+    { ip_hash: 'bot-ip', ...hitAt(0, '/now') },
+    { ip_hash: 'bot-ip', ...hitAt(10000, '/ideas') },
+    { ip_hash: 'bot-ip', ...hitAt(5000, '/friends') }
+  ]
+  assert.equal(getBotFlaggedIps(hits).has('bot-ip'), true)
+})
+
+test('getBotFlaggedIps: ignores hits with no ip_hash', () => {
+  const hits = [hitAt(0, '/now'), hitAt(5000, '/friends'), hitAt(10000, '/ideas'), hitAt(15000, '/uses')]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
+// getBotFlaggedIps: explicit semantics tests, per external review
+// (flagging is per-IP-for-the-whole-window, and bots/totalHits are both
+// hit-counts, not visitor-counts - see the comment in index.js)
+test('getBotFlaggedIps: 4 hits in one burst is one flagged IP, which becomes 4 excluded/bot hits downstream', () => {
+  const hits = [
+    { ip_hash: 'bot-ip', ...hitAt(0, '/now') },
+    { ip_hash: 'bot-ip', ...hitAt(5000, '/friends') },
+    { ip_hash: 'bot-ip', ...hitAt(10000, '/ideas') },
+    { ip_hash: 'bot-ip', ...hitAt(15000, '/uses') }
+  ]
+  const flagged = getBotFlaggedIps(hits)
+  assert.equal(flagged.size, 1)
+  // This is the exact check handleAnalyticsData uses per-hit to decide
+  // exclusion - confirming it yields 4 excluded hits, not 1, since bots/
+  // totalHits are hit-counts (matching incrementBotCount's pre-existing
+  // per-hit semantics), not unique-visitor counts.
+  const excludedHits = hits.filter(h => flagged.has(h.ip_hash))
+  assert.equal(excludedHits.length, 4)
+})
+
+test('getBotFlaggedIps: flags an IP for its whole window, including hits well before the burst that triggered it', () => {
+  const hits = [
+    { ip_hash: 'shared-ip', ...hitAt(0, '/normal-page-1') },
+    { ip_hash: 'shared-ip', ...hitAt(60000, '/normal-page-2') },
+    // burst starts two minutes later
+    { ip_hash: 'shared-ip', ...hitAt(120000, '/now') },
+    { ip_hash: 'shared-ip', ...hitAt(125000, '/friends') },
+    { ip_hash: 'shared-ip', ...hitAt(130000, '/ideas') },
+    { ip_hash: 'shared-ip', ...hitAt(135000, '/uses') }
+  ]
+  const flagged = getBotFlaggedIps(hits)
+  assert.equal(flagged.has('shared-ip'), true)
+  // Deliberate: the two early, individually unremarkable hits get excluded
+  // too, not just the 4 burst hits - there's no way to draw a clean line
+  // mid-visitor between "before" and "after" they were confirmed automated.
+  const excludedHits = hits.filter(h => flagged.has(h.ip_hash))
+  assert.equal(excludedHits.length, 6)
 })

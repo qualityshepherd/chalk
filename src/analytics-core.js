@@ -132,7 +132,7 @@ export const sanitizeTimestamp = (ts, now = Date.now()) => {
 export const sanitizeHitPayload = (payload, now = Date.now()) => {
   const {
     domain, path, country, city, region, referrer, asn, ua, ip,
-    rss_feed: rssFeed, ts, as_organization: asOrganization, http_protocol: httpProtocol
+    rss_feed: rssFeed, ts, as_organization: asOrganization, http_protocol: httpProtocol, status
   } = payload || {}
 
   if (!isValidDomain(domain)) return null
@@ -154,6 +154,75 @@ export const sanitizeHitPayload = (payload, now = Date.now()) => {
     asn: Number.isInteger(asn) ? asn : undefined,
     rssFeed: bounded(rssFeed, 200),
     asOrganization: bounded(asOrganization, 200),
-    httpProtocol: bounded(httpProtocol, 20)
+    httpProtocol: bounded(httpProtocol, 20),
+    status: Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined
   }
+}
+
+const BURST_WINDOW_MS = 30 * 1000
+const BURST_DISTINCT_PATH_THRESHOLD = 4
+const REPEAT_404_THRESHOLD = 4
+
+// True if any 30-second window in this time-sorted hit list satisfies the
+// predicate. O(n^2) in the worst case but n is one IP's hits in the
+// requested range, never remotely large enough to matter.
+const hasBurstMatching = (hits, predicate) => {
+  for (let i = 0; i < hits.length; i++) {
+    const windowEnd = hits[i].ts + BURST_WINDOW_MS
+    const window = hits.slice(i).filter(h => h.ts <= windowEnd)
+    if (predicate(window)) return true
+  }
+  return false
+}
+
+// Symmetric to HUMAN_DETECTORS (analyticsTemplate.js) but the opposite
+// polarity: evidence a visitor is a bot, not evidence they're human.
+// Deliberately behavioral (needs multiple hits) rather than per-hit, which
+// is why it lives here as a separate pass over grouped hits instead of
+// folding into isBot/isDatacenter - you can't know it's a burst until
+// you've seen several hits arrive.
+export const BOT_DETECTORS = [
+  {
+    // No real human generates 4+ distinct page loads in 30 seconds. Reusing
+    // one path repeatedly (e.g. Rando's reroll-by-refresh) is deliberately
+    // NOT flagged - only breadth of distinct pages counts here.
+    name: 'pathVelocity',
+    test: (hits) => hasBurstMatching(hits, (window) => new Set(window.map(h => h.path)).size >= BURST_DISTINCT_PATH_THRESHOLD),
+    label: () => 'rapid multi-page crawl'
+  },
+  {
+    // Reloading a *working* page repeatedly is normal (see above); reloading
+    // a dead one four times in 30 seconds has no legitimate human reason.
+    name: 'repeated404',
+    test: (hits) => hasBurstMatching(hits, (window) => {
+      const countByPath = new Map()
+      for (const hit of window) {
+        if (hit.status !== 404) continue
+        countByPath.set(hit.path, (countByPath.get(hit.path) || 0) + 1)
+      }
+      return [...countByPath.values()].some(count => count >= REPEAT_404_THRESHOLD)
+    }),
+    label: () => '404 retry loop'
+  }
+]
+
+export const botSignals = (hits) => BOT_DETECTORS.filter(d => d.test(hits)).map(d => d.label())
+
+// Flags IPs, not hits - "this visitor acted like a bot somewhere in here,"
+// not "this specific hit is a bot." Callers decide what to do with that.
+// Exclude RSS/feed hits before calling - feed polling is already-expected
+// automated traffic, not evidence of anything.
+export const getBotFlaggedIps = (hits) => {
+  const byIp = new Map()
+  for (const hit of hits) {
+    if (!hit.ip_hash) continue
+    if (!byIp.has(hit.ip_hash)) byIp.set(hit.ip_hash, [])
+    byIp.get(hit.ip_hash).push(hit)
+  }
+  const flagged = new Set()
+  for (const [ip, ipHits] of byIp) {
+    ipHits.sort((a, b) => a.ts - b.ts)
+    if (botSignals(ipHits).length > 0) flagged.add(ip)
+  }
+  return flagged
 }
