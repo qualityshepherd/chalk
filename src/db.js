@@ -21,9 +21,14 @@ export async function incrementBotCount (db, domain, date) {
   ).bind(domain, date).run()
 }
 
+// If a query ever returns exactly this many rows, there may be more within
+// the requested window that got cut off - callers should treat that as a
+// signal to warn, not silently aggregate a partial result as if complete.
+export const HITS_QUERY_LIMIT = 20000
+
 export async function queryHits (db, domain, since) {
   const { results } = await db.prepare(
-    'SELECT ts, path, country, city, region, device, referrer, ip_hash, asn, rss_feed, rss_subs, as_organization, http_protocol FROM hits WHERE domain=? AND ts>=? ORDER BY ts DESC LIMIT 20000'
+    `SELECT ts, path, country, city, region, device, referrer, ip_hash, asn, rss_feed, rss_subs, as_organization, http_protocol FROM hits WHERE domain=? AND ts>=? ORDER BY ts DESC LIMIT ${HITS_QUERY_LIMIT}`
   ).bind(domain, since).all()
   return results
 }
@@ -50,9 +55,11 @@ export async function createNonce (db, nonce) {
 }
 
 export async function consumeNonce (db, nonce) {
-  const row = await db.prepare('SELECT created_at FROM nonces WHERE nonce=?').bind(nonce).first()
+  // Atomic: DELETE ... RETURNING means only one concurrent request racing
+  // on the same nonce can get the row back - a second request gets null,
+  // not the timestamp, so the same challenge can't be consumed twice.
+  const row = await db.prepare('DELETE FROM nonces WHERE nonce=? RETURNING created_at').bind(nonce).first()
   if (!row) return false
-  await db.prepare('DELETE FROM nonces WHERE nonce=?').bind(nonce).run()
   return !isNonceExpired(row.created_at, Date.now())
 }
 
@@ -87,9 +94,17 @@ export async function getRateLimit (db, table, ip) {
   return row ? { count: row.count, resetAt: row.reset_at } : null
 }
 
-export async function setRateLimit (db, table, ip, record) {
+// Atomic: the count/reset_at transition happens inside the UPSERT itself,
+// so two concurrent requests from the same IP can't both read the same
+// stale count and each write count+1, silently losing an attempt (which
+// is exactly what the old getRateLimit-then-setRateLimit sequence allowed).
+export async function incrementRateLimit (db, table, ip, now, windowMs) {
   if (!RATE_LIMIT_TABLES.has(table)) throw new Error('invalid rate limit table')
+  const resetAt = now + windowMs
   await db.prepare(
-    `INSERT INTO ${table} (ip,count,reset_at) VALUES (?,?,?) ON CONFLICT(ip) DO UPDATE SET count=excluded.count, reset_at=excluded.reset_at`
-  ).bind(ip, record.count, record.resetAt).run()
+    `INSERT INTO ${table} (ip, count, reset_at) VALUES (?, 1, ?)
+     ON CONFLICT(ip) DO UPDATE SET
+       count = CASE WHEN reset_at <= ? THEN 1 ELSE count + 1 END,
+       reset_at = CASE WHEN reset_at <= ? THEN ? ELSE reset_at END`
+  ).bind(ip, resetAt, now, now, resetAt).run()
 }

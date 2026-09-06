@@ -77,7 +77,7 @@ const renderDaysNav = (domain) => {
 
 const renderDomainNav = (domains, active) => {
   document.getElementById('domain-nav').innerHTML = domains.map(domain =>
-    \`<a href="?days=\${days}&domain=\${encodeURIComponent(domain)}"\${domain === active ? ' class="active"' : ''}>\${domain}</a>\`
+    \`<a href="?days=\${days}&domain=\${encodeURIComponent(domain)}"\${domain === active ? ' class="active"' : ''}>\${escapeHtml(domain)}</a>\`
   ).join('')
 }
 
@@ -166,7 +166,7 @@ const groupSessions = (hits) => {
 }
 
 const aggregate = (allData) => {
-  let totalHits = 0, totalBots = 0, totalUniques = 0
+  let totalHits = 0, totalBots = 0
   const byPath = {}, byCountry = {}, byReferrer = {}, byRss = {}, byDevice = { mobile: 0, desktop: 0 }
   const byHour = Array(24).fill(0), byDow = Array(7).fill(0)
   const recentHits = []
@@ -174,8 +174,6 @@ const aggregate = (allData) => {
     if (!data) continue
     totalHits += data.totalHits || 0
     totalBots += data.bots || 0
-    const uniques = data.uniques
-    totalUniques += Array.isArray(uniques) ? uniques.length : (typeof uniques === 'number' ? uniques : 0)
     for (const [k, v] of Object.entries(data.byPath || {})) byPath[k] = (byPath[k] || 0) + v
     for (const [k, v] of Object.entries(data.byCountry || {})) byCountry[k] = (byCountry[k] || 0) + v
     for (const [k, v] of Object.entries(data.byReferrer || {})) byReferrer[k] = (byReferrer[k] || 0) + v
@@ -192,7 +190,7 @@ const aggregate = (allData) => {
     recentHits.push(...(data.recentHits || []))
   }
   recentHits.sort((a, b) => b.ts - a.ts)
-  return { totalHits, totalBots, totalUniques, byPath, byCountry, byReferrer, byRss, byDevice, byHour, byDow, recentHits }
+  return { totalHits, totalBots, byPath, byCountry, byReferrer, byRss, byDevice, byHour, byDow, recentHits }
 }
 
 let activeIp = null
@@ -309,7 +307,7 @@ const renderLogs = () => {
 window.filterIp = (ip) => { activeIp = ip; renderLogs() }
 window.clearFilter = () => { activeIp = null; renderLogs() }
 
-const render = (allData) => {
+const render = ({ days: allData, truncated, totalUniques }) => {
   const stats = aggregate(allData)
   allSessions = groupSessions(stats.recentHits)
   const topPaths = Object.entries(stats.byPath).sort((a, b) => b[1] - a[1]).slice(0, 10)
@@ -339,8 +337,9 @@ const render = (allData) => {
   const mobilePct = totalDevices > 0 ? Math.round((stats.byDevice.mobile / totalDevices) * 100) : null
 
   document.getElementById('summary').innerHTML =
+    (truncated ? \`<div class="truncated-note" title="This window has more hits than a single query fetches - the numbers below are a partial count, not the true total.">⚠ partial data</div>\` : '') +
     \`<div><strong class="\${statClass(stats.totalHits)}" title="\${stats.totalHits}">\${formatNum(stats.totalHits)}</strong><span>hits</span></div>\` +
-    \`<div><strong class="\${statClass(stats.totalUniques)}" title="\${stats.totalUniques}">\${formatNum(stats.totalUniques)}</strong><span>unique</span></div>\` +
+    \`<div><strong class="\${statClass(totalUniques)}" title="\${totalUniques}">\${formatNum(totalUniques)}</strong><span>unique</span></div>\` +
     \`<div><strong>\${allData.length}</strong><span>days</span></div>\` +
     \`<div><strong class="\${statClass(stats.totalBots)}" title="\${stats.totalBots}">\${formatNum(stats.totalBots)}</strong><span>🤖 bots</span></div>\` +
     (mobilePct !== null ? \`<div><strong>\${mobilePct}%</strong><span>📱 mobile</span></div>\` : '') +

@@ -100,3 +100,60 @@ export const hashIp = async (ip) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
   return Array.from(new Uint8Array(digest)).slice(0, 8).map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
+
+const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i
+
+// domain gets rendered into the dashboard's nav bar - beyond the escapeHtml
+// fix on the render side, rejecting anything that isn't hostname-shaped at
+// ingestion means a leaked HIT_SECRET can't be used to plant something
+// unexpected in the domains table in the first place.
+export const isValidDomain = (domain) =>
+  typeof domain === 'string' && domain.length > 0 && domain.length <= 253 && DOMAIN_RE.test(domain)
+
+const isBoundedString = (v, maxLen) => typeof v === 'string' && v.length <= maxLen
+
+const CLOCK_SKEW_MS = 5 * 60 * 1000
+
+// Hits are forwarded immediately by trusted first-party Workers with
+// accurate clocks, so legitimate skew should be near-zero - this bounds
+// how far a caller-supplied ts can diverge from server receipt time,
+// falling back rather than rejecting since a bad timestamp doesn't mean
+// the rest of the hit is illegitimate.
+export const sanitizeTimestamp = (ts, now = Date.now()) => {
+  if (!Number.isSafeInteger(ts)) return now
+  if (Math.abs(now - ts) > CLOCK_SKEW_MS) return now
+  return ts
+}
+
+// Validates and bounds every /hit field before it reaches classification
+// (isBot/isDatacenter) or D1 storage. Without this, a non-string path/ua
+// could 500 the endpoint (isBot calls .toLowerCase() on both), and any
+// field could otherwise be stored at unbounded size.
+export const sanitizeHitPayload = (payload, now = Date.now()) => {
+  const {
+    domain, path, country, city, region, referrer, asn, ua, ip,
+    rss_feed: rssFeed, ts, as_organization: asOrganization, http_protocol: httpProtocol
+  } = payload || {}
+
+  if (!isValidDomain(domain)) return null
+  if (!isBoundedString(path, 2048) || path.length === 0) return null
+  if (!isBoundedString(ip, 64) || ip.length === 0) return null
+
+  const bounded = (v, maxLen) => (isBoundedString(v, maxLen) ? v : undefined)
+
+  return {
+    domain,
+    path,
+    ip,
+    ts: sanitizeTimestamp(ts, now),
+    country: bounded(country, 100),
+    city: bounded(city, 100),
+    region: bounded(region, 100),
+    referrer: bounded(referrer, 2000),
+    ua: bounded(ua, 1000) || '',
+    asn: Number.isInteger(asn) ? asn : undefined,
+    rssFeed: bounded(rssFeed, 200),
+    asOrganization: bounded(asOrganization, 200),
+    httpProtocol: bounded(httpProtocol, 20)
+  }
+}

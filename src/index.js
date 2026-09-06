@@ -2,15 +2,15 @@ import ANALYTICS_TEMPLATE from './analyticsTemplate.js'
 import {
   insertHit, incrementBotCount, queryHits, queryBotCounts, getDomains,
   createNonce, consumeNonce, createSession, getValidSession, deleteSession,
-  getRateLimit, setRateLimit
+  getRateLimit, incrementRateLimit, HITS_QUERY_LIMIT
 } from './db.js'
 import {
   parseCookies, sessionCookie, clearedSessionCookie, generateNonce, generateSessionToken,
-  isAuthorizedPubkey, verifySignature, hexToBytes, isRateLimited, incrementAttempt,
+  isAuthorizedPubkey, verifySignature, hexToBytes, timingSafeEqual, isRateLimited,
   SESSION_TTL_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS,
   CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS, CHALLENGE_RATE_LIMIT_WINDOW_MS
 } from './auth.js'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, hashIp } from './analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, hashIp, sanitizeHitPayload } from './analytics-core.js'
 
 const COOKIE_NAME = 'chalk_session'
 
@@ -48,17 +48,16 @@ function withAuth (handler) {
 // classification happens, so every property is judged the same way.
 async function handleHit (req, env) {
   const secret = req.headers.get('x-hit-secret') || ''
-  if (!env.HIT_SECRET || secret !== env.HIT_SECRET) {
+  if (!env.HIT_SECRET || !timingSafeEqual(secret, env.HIT_SECRET)) {
     return new Response('forbidden', { status: 403 })
   }
 
   let payload
   try { payload = await req.json() } catch { return new Response('bad request', { status: 400 }) }
 
-  const { domain, path, country, city, region, referrer, asn, ua, ip, rss_feed: rssFeed, ts, as_organization: asOrganization, http_protocol: httpProtocol } = payload
-  if (!domain || !path || !ip) return new Response('bad request', { status: 400 })
-
-  const timestamp = ts || Date.now()
+  const hit = sanitizeHitPayload(payload)
+  if (!hit) return new Response('bad request', { status: 400 })
+  const { domain, path, country, city, region, referrer, asn, ua, ip, rssFeed, ts: timestamp, asOrganization, httpProtocol } = hit
 
   // RSS/podcast crawlers routinely run from datacenter ASNs (AWS, GCP,
   // Azure) — that's normal for feed-fetching infrastructure, not evidence
@@ -96,10 +95,12 @@ async function handleHit (req, env) {
 }
 
 // Clamps the days query param to a sane range — bad input (negative, NaN)
-// silently fell through to an empty result before this existed.
+// silently fell through to an empty result before this existed. 365 to
+// match the UI's "year" option - it used to cap at 90 while the nav still
+// offered 365, silently returning a quarter of what it claimed to show.
 export const clampDays = (raw) => {
   const parsed = parseInt(raw ?? '7', 10)
-  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 90) : 7
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 365) : 7
 }
 
 // GET /api/analytics?domain=brine.dev&days=7
@@ -153,6 +154,12 @@ const handleAnalyticsData = withAuth(async (req, env) => {
     getDay(dateCursor.toISOString().slice(0, 10))
   }
 
+  // Period-wide distinct visitors, separate from each day's own _ips Set -
+  // the same person visiting Monday and Tuesday is one unique visitor over
+  // a week, not two. Summing per-day unique counts (what the frontend used
+  // to do) double-counts anyone who returns within the window.
+  const periodIps = new Set()
+
   for (const hit of hits) {
     const date = new Date(hit.ts).toISOString().slice(0, 10)
     if (!dayMap.has(date)) continue
@@ -166,6 +173,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
 
     day.totalHits++
     day._ips.add(hit.ip_hash)
+    periodIps.add(hit.ip_hash)
     day.byPath[hit.path] = (day.byPath[hit.path] || 0) + 1
     day.byHour[new Date(hit.ts).getUTCHours()]++
     day.byDow[new Date(hit.ts).getUTCDay()]++
@@ -190,7 +198,12 @@ const handleAnalyticsData = withAuth(async (req, env) => {
       return { date, data: { ...rest, bots: botCountMap.get(date) || 0, uniques: _ips.size } }
     })
 
-  return json(result)
+  // hits.length hitting the query cap means some rows in the requested
+  // window were never fetched at all - the dashboard would otherwise show
+  // a confidently wrong total with no indication anything was cut off.
+  const truncated = hits.length >= HITS_QUERY_LIMIT
+
+  return json({ days: result, truncated, totalUniques: periodIps.size })
 })
 
 // Auth routes
@@ -200,7 +213,7 @@ async function handleChallenge (req, env) {
   if (isRateLimited(record, Date.now(), CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS)) {
     return json({ error: 'too many attempts' }, 429)
   }
-  await setRateLimit(env.DB, 'challenge_attempts', ip, incrementAttempt(record, Date.now(), CHALLENGE_RATE_LIMIT_WINDOW_MS))
+  await incrementRateLimit(env.DB, 'challenge_attempts', ip, Date.now(), CHALLENGE_RATE_LIMIT_WINDOW_MS)
 
   const nonce = generateNonce()
   await createNonce(env.DB, nonce)
@@ -221,15 +234,13 @@ async function handleLogin (req, env) {
   if (!valid) return json({ error: 'invalid or expired challenge' }, 401)
 
   if (!isAuthorizedPubkey(pubkey, env)) {
-    const next = incrementAttempt(record, Date.now(), LOGIN_RATE_LIMIT_WINDOW_MS)
-    await setRateLimit(env.DB, 'login_attempts', ip, next)
+    await incrementRateLimit(env.DB, 'login_attempts', ip, Date.now(), LOGIN_RATE_LIMIT_WINDOW_MS)
     return json({ error: 'unauthorized' }, 401)
   }
 
   const verified = await verifySignature(challenge, sig, hexToBytes(pubkey))
   if (!verified) {
-    const next = incrementAttempt(record, Date.now(), LOGIN_RATE_LIMIT_WINDOW_MS)
-    await setRateLimit(env.DB, 'login_attempts', ip, next)
+    await incrementRateLimit(env.DB, 'login_attempts', ip, Date.now(), LOGIN_RATE_LIMIT_WINDOW_MS)
     return json({ error: 'signature invalid' }, 401)
   }
 

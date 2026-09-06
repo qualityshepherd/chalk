@@ -10,8 +10,12 @@ test('clampDays: valid value passes through', () => {
   assert.equal(clampDays('30'), 30)
 })
 
-test('clampDays: above max clamps to 90', () => {
-  assert.equal(clampDays('365'), 90)
+test('clampDays: 365 matches the UI\'s "year" option exactly', () => {
+  assert.equal(clampDays('365'), 365)
+})
+
+test('clampDays: above max clamps to 365', () => {
+  assert.equal(clampDays('9999'), 365)
 })
 
 test('clampDays: negative value clamps to 1', () => {
