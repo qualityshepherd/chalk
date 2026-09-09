@@ -191,18 +191,13 @@ export const BOT_DETECTORS = [
     label: () => 'rapid multi-page crawl'
   },
   {
-    // Reloading a *working* page repeatedly is normal (see above); reloading
-    // a dead one four times in 30 seconds has no legitimate human reason.
+    // Any path, same or different - 4 dead requests in 30 seconds is a scan,
+    // not a person. A real visitor can occasionally hit one stale 404 off a
+    // cached page after a deploy; four in the same burst isn't that.
     name: 'repeated404',
-    test: (hits) => hasBurstMatching(hits, (window) => {
-      const countByPath = new Map()
-      for (const hit of window) {
-        if (hit.status !== 404) continue
-        countByPath.set(hit.path, (countByPath.get(hit.path) || 0) + 1)
-      }
-      return [...countByPath.values()].some(count => count >= REPEAT_404_THRESHOLD)
-    }),
-    label: () => '404 retry loop'
+    test: (hits) => hasBurstMatching(hits, (window) =>
+      window.filter(h => h.status === 404).length >= REPEAT_404_THRESHOLD),
+    label: () => '404 scan'
   }
 ]
 

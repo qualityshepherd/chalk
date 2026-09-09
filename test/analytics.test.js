@@ -185,7 +185,17 @@ test('botSignals: 3 distinct paths within 30s is NOT enough', () => {
 // botSignals / BOT_DETECTORS - repeated404
 test('botSignals: same path 404ing 4 times within 30s is flagged', () => {
   const hits = [hitAt(0, '/dead', 404), hitAt(5000, '/dead', 404), hitAt(10000, '/dead', 404), hitAt(15000, '/dead', 404)]
-  assert.deepEqual(botSignals(hits), ['404 retry loop'])
+  assert.deepEqual(botSignals(hits), ['404 scan'])
+})
+
+test('botSignals: 4 total 404s split across 2 paths is flagged (below pathVelocity distinct-path threshold)', () => {
+  const hits = [hitAt(0, '/private.key', 404), hitAt(5000, '/private.key', 404), hitAt(10000, '/id_rsa', 404), hitAt(15000, '/id_rsa', 404)]
+  assert.deepEqual(botSignals(hits), ['404 scan'])
+})
+
+test('botSignals: 3 total 404s across mixed paths is NOT enough', () => {
+  const hits = [hitAt(0, '/a', 404), hitAt(5000, '/a', 404), hitAt(10000, '/b', 404)]
+  assert.deepEqual(botSignals(hits), [])
 })
 
 test('botSignals: same path reloaded 4 times with 200 is NOT flagged', () => {
@@ -198,7 +208,7 @@ test('botSignals: both detectors can fire together', () => {
     hitAt(0, '/a', 404), hitAt(1000, '/a', 404), hitAt(2000, '/a', 404), hitAt(3000, '/a', 404),
     hitAt(4000, '/b'), hitAt(5000, '/c'), hitAt(6000, '/d')
   ]
-  assert.deepEqual(botSignals(hits), ['rapid multi-page crawl', '404 retry loop'])
+  assert.deepEqual(botSignals(hits), ['rapid multi-page crawl', '404 scan'])
 })
 
 // getBotFlaggedIps
