@@ -241,6 +241,49 @@ test('getBotFlaggedIps: ignores hits with no ip_hash', () => {
   assert.equal(getBotFlaggedIps(hits).size, 0)
 })
 
+// getBotFlaggedIps: ASN-pooled 404 burst - catches a scanner rotating
+// through several IPs on one hosting provider, where no single IP alone
+// crosses the 404 threshold.
+test('getBotFlaggedIps: 4 IPs on the same ASN each 404ing once in the burst are all flagged', () => {
+  const hits = [
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 404) },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(5000, '/b', 404) },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(10000, '/c', 404) },
+    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(15000, '/d', 404) }
+  ]
+  const flagged = getBotFlaggedIps(hits)
+  for (const ip of ['ip-1', 'ip-2', 'ip-3', 'ip-4']) assert.equal(flagged.has(ip), true)
+})
+
+test('getBotFlaggedIps: an IP on the same ASN but outside the triggering window is not flagged', () => {
+  const hits = [
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 404) },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(5000, '/b', 404) },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(10000, '/c', 404) },
+    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(15000, '/d', 404) },
+    { ip_hash: 'late-ip', asn: 'AS1234', ...hitAt(120000, '/e', 404) }
+  ]
+  assert.equal(getBotFlaggedIps(hits).has('late-ip'), false)
+})
+
+test('getBotFlaggedIps: 3 total 404s across an ASN is not enough to flag anyone', () => {
+  const hits = [
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 404) },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(5000, '/b', 404) },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(10000, '/c', 404) }
+  ]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
+test('getBotFlaggedIps: hits with no asn are ignored by ASN pooling without crashing', () => {
+  const hits = [
+    { ip_hash: 'ip-1', ...hitAt(0, '/a', 404) },
+    { ip_hash: 'ip-2', ...hitAt(5000, '/b', 404) },
+    { ip_hash: 'ip-3', ...hitAt(10000, '/c', 404) }
+  ]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
 // getBotFlaggedIps: explicit semantics tests, per external review
 // (flagging is per-IP-for-the-whole-window, and bots/totalHits are both
 // hit-counts, not visitor-counts - see the comment in index.js)

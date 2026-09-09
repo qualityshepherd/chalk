@@ -163,17 +163,19 @@ const BURST_WINDOW_MS = 30 * 1000
 const BURST_DISTINCT_PATH_THRESHOLD = 4
 const REPEAT_404_THRESHOLD = 4
 
-// True if any 30-second window in this time-sorted hit list satisfies the
-// predicate. O(n^2) in the worst case but n is one IP's hits in the
-// requested range, never remotely large enough to matter.
-const hasBurstMatching = (hits, predicate) => {
+// Returns the first 30-second window (time-sorted hit list) satisfying the
+// predicate, or null. O(n^2) in the worst case but n is one IP's (or one
+// ASN's) hits in the requested range, never remotely large enough to matter.
+const findBurstWindow = (hits, predicate) => {
   for (let i = 0; i < hits.length; i++) {
     const windowEnd = hits[i].ts + BURST_WINDOW_MS
     const window = hits.slice(i).filter(h => h.ts <= windowEnd)
-    if (predicate(window)) return true
+    if (predicate(window)) return window
   }
-  return false
+  return null
 }
+
+const hasBurstMatching = (hits, predicate) => findBurstWindow(hits, predicate) !== null
 
 // Symmetric to HUMAN_DETECTORS (analyticsTemplate.js) but the opposite
 // polarity: evidence a visitor is a bot, not evidence they're human.
@@ -203,6 +205,30 @@ export const BOT_DETECTORS = [
 
 export const botSignals = (hits) => BOT_DETECTORS.filter(d => d.test(hits)).map(d => d.label())
 
+// Same 404-burst rule as repeated404, but pooled across every IP sharing an
+// ASN - catches a scanner rotating through a pool of addresses on one
+// hosting provider, which no single-IP detector can see (each IP alone
+// might only ever send 1-2 hits). Only the IPs actually present in the
+// triggering window get flagged, not the whole ASN's traffic for the period
+// - an ASN can be a hosting company with thousands of unrelated tenants,
+// and pooling anything weaker than "dead requests" (e.g. page-load volume)
+// across that many strangers would misfire constantly.
+const asnBurstFlaggedIps = (hits) => {
+  const byAsn = new Map()
+  for (const hit of hits) {
+    if (!hit.asn || !hit.ip_hash) continue
+    if (!byAsn.has(hit.asn)) byAsn.set(hit.asn, [])
+    byAsn.get(hit.asn).push(hit)
+  }
+  const flagged = new Set()
+  for (const asnHits of byAsn.values()) {
+    asnHits.sort((a, b) => a.ts - b.ts)
+    const window = findBurstWindow(asnHits, (w) => w.filter(h => h.status === 404).length >= REPEAT_404_THRESHOLD)
+    if (window) for (const hit of window) flagged.add(hit.ip_hash)
+  }
+  return flagged
+}
+
 // Flags IPs, not hits - "this visitor acted like a bot somewhere in here,"
 // not "this specific hit is a bot." Callers decide what to do with that.
 // Exclude RSS/feed hits before calling - feed polling is already-expected
@@ -219,5 +245,6 @@ export const getBotFlaggedIps = (hits) => {
     ipHits.sort((a, b) => a.ts - b.ts)
     if (botSignals(ipHits).length > 0) flagged.add(ip)
   }
+  for (const ip of asnBurstFlaggedIps(hits)) flagged.add(ip)
   return flagged
 }
