@@ -20,7 +20,7 @@ const BOT_PATHS = [
   'ediscovery', 'ecp/current', 'graphql',
   'https%3a', 'latest/meta-data', 'login.action',
   'meta-inf', 'metadata/', 'nodeinfo', 'package.json',
-  'passwd', 'pom.properties', 'requirements.txt',
+  'passwd', 'php_info', 'phpinfo', 'pom.properties', 'requirements.txt',
   'rest_route=', 'security.txt', 'server-status', 'setup', 'shell',
   'statistics.json', 'swagger', 'telescope',
   'trace.axd', 'wp-', '/wp/', 'xmlrpc', 'application.zip', 'latest.zip', 'public_html.rar'
