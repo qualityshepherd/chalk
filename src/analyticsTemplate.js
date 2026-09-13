@@ -18,11 +18,12 @@ export default `<!DOCTYPE html>
   <div id="filter-bar" class="filter-bar"></div>
   <div id="logs"></div>
 </div>
-<script>
+<script type="module">
+import { aggregate, groupSessions } from '/analytics-core.js'
+
 const params = new URLSearchParams(location.search)
 const days = parseInt(params.get('days') || '1')
 const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
-const SESSION_GAP = 30 * 60 * 1000 // 30 minutes
 
 const COUNTRY_NAMES = {
   AF:'Afghanistan',AL:'Albania',DZ:'Algeria',AO:'Angola',AR:'Argentina',AM:'Armenia',AU:'Australia',AT:'Austria',
@@ -129,68 +130,6 @@ const heatmap = (data, labels, cls) => {
   }).join('')
   return \`<div class="heatmap \${cls}">\${cells}</div>\` +
     \`<div class="heatmap-labels \${cls}">\${labels.map(label => \`<span>\${label}</span>\`).join('')}</div>\`
-}
-
-const groupSessions = (hits) => {
-  const byIp = {}
-  for (const hit of hits) {
-    if (!byIp[hit.ip]) byIp[hit.ip] = []
-    byIp[hit.ip].push(hit)
-  }
-  const sessions = []
-  for (const ipHits of Object.values(byIp)) {
-    ipHits.sort((a, b) => a.ts - b.ts)
-    let session = null
-    for (const hit of ipHits) {
-      const sameDay = session && new Date(hit.ts).toDateString() === new Date(session.ts).toDateString()
-      const withinGap = session && (hit.ts - session.lastTs <= SESSION_GAP)
-      const inSession = days === 1 ? withinGap : sameDay
-      if (!session || !inSession) {
-        session = { ts: hit.ts, lastTs: hit.ts, ip: hit.ip, country: hit.country, region: hit.region, city: hit.city, referrer: hit.referrer || '', hits: [] }
-        sessions.push(session)
-      }
-      session.lastTs = hit.ts
-      session.hits.push({
-        path: hit.path,
-        ts: hit.ts,
-        referrer: hit.referrer || '',
-        device: hit.device || '',
-        asn: hit.asn || '',
-        asOrganization: hit.asOrganization || '',
-        httpProtocol: hit.httpProtocol || ''
-      })
-    }
-  }
-  sessions.sort((a, b) => b.ts - a.ts)
-  return sessions
-}
-
-const aggregate = (allData) => {
-  let totalHits = 0, totalBots = 0
-  const byPath = {}, byCountry = {}, byReferrer = {}, byRss = {}, byDevice = { mobile: 0, desktop: 0 }
-  const byHour = Array(24).fill(0), byDow = Array(7).fill(0)
-  const recentHits = []
-  for (const { data } of allData) {
-    if (!data) continue
-    totalHits += data.totalHits || 0
-    totalBots += data.bots || 0
-    for (const [k, v] of Object.entries(data.byPath || {})) byPath[k] = (byPath[k] || 0) + v
-    for (const [k, v] of Object.entries(data.byCountry || {})) byCountry[k] = (byCountry[k] || 0) + v
-    for (const [k, v] of Object.entries(data.byReferrer || {})) byReferrer[k] = (byReferrer[k] || 0) + v
-    for (const [feed, v] of Object.entries(data.byRss || {})) {
-      if (!byRss[feed]) byRss[feed] = { hits: 0, subscribers: 0, aggregators: {} }
-      byRss[feed].hits += v.hits || 0
-      byRss[feed].subscribers = Math.max(byRss[feed].subscribers, v.subscribers || 0)
-      for (const [agg, count] of Object.entries(v.aggregators || {})) byRss[feed].aggregators[agg] = (byRss[feed].aggregators[agg] || 0) + count
-    }
-    byDevice.mobile += data.byDevice?.mobile || 0
-    byDevice.desktop += data.byDevice?.desktop || 0
-    ;(data.byHour || []).forEach((count, i) => { byHour[i] += count })
-    ;(data.byDow || []).forEach((count, i) => { byDow[i] += count })
-    recentHits.push(...(data.recentHits || []))
-  }
-  recentHits.sort((a, b) => b.ts - a.ts)
-  return { totalHits, totalBots, byPath, byCountry, byReferrer, byRss, byDevice, byHour, byDow, recentHits }
 }
 
 let activeIp = null
@@ -324,7 +263,7 @@ window.clearFilter = () => { activeIp = null; renderLogs() }
 
 const render = ({ days: allData, truncated, totalUniques }) => {
   const stats = aggregate(allData)
-  allSessions = groupSessions(stats.recentHits)
+  allSessions = groupSessions(stats.recentHits, days)
   const topPaths = Object.entries(stats.byPath).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const topCountries = Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const topRefs = Object.entries(stats.byReferrer).sort((a, b) => b[1] - a[1]).slice(0, 10)
