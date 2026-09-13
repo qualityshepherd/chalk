@@ -155,12 +155,20 @@ test('sanitizeHitPayload: missing status is fine', () => {
   assert.equal(hit.status, undefined)
 })
 
-// botSignals / BOT_DETECTORS - pathVelocity
+// botSignals / BOT_DETECTORS - pathVelocity (the only detector - status is
+// irrelevant, only breadth of distinct pages counts)
 const hitAt = (ts, path, status = 200) => ({ ts, path, status })
 
-test('botSignals: 4 distinct paths within 30s is flagged', () => {
+test('botSignals: 4 distinct paths within 15s is flagged', () => {
   const hits = [
-    hitAt(0, '/now'), hitAt(5000, '/friends'), hitAt(10000, '/ideas'), hitAt(15000, '/uses')
+    hitAt(0, '/now'), hitAt(4000, '/friends'), hitAt(8000, '/ideas'), hitAt(12000, '/uses')
+  ]
+  assert.deepEqual(botSignals(hits), ['rapid multi-page crawl'])
+})
+
+test('botSignals: 4 distinct paths with mixed status within 15s is flagged (status is irrelevant)', () => {
+  const hits = [
+    hitAt(0, '/now', 200), hitAt(4000, '/friends', 404), hitAt(8000, '/ideas', 200), hitAt(12000, '/uses', 404)
   ]
   assert.deepEqual(botSignals(hits), ['rapid multi-page crawl'])
 })
@@ -170,54 +178,30 @@ test('botSignals: same path repeated many times is NOT flagged (Rando reroll cas
   assert.deepEqual(botSignals(hits), [])
 })
 
-test('botSignals: 4 distinct paths spread across more than 30s is NOT flagged', () => {
+test('botSignals: same path 404ing repeatedly is also NOT flagged - diversity, not repetition, is the signal', () => {
+  const hits = [hitAt(0, '/dead', 404), hitAt(4000, '/dead', 404), hitAt(8000, '/dead', 404), hitAt(12000, '/dead', 404)]
+  assert.deepEqual(botSignals(hits), [])
+})
+
+test('botSignals: 4 distinct paths spread across more than 15s is NOT flagged', () => {
   const hits = [
-    hitAt(0, '/now'), hitAt(15000, '/friends'), hitAt(35000, '/ideas'), hitAt(50000, '/uses')
+    hitAt(0, '/now'), hitAt(6000, '/friends'), hitAt(12000, '/ideas'), hitAt(18000, '/uses')
   ]
   assert.deepEqual(botSignals(hits), [])
 })
 
-test('botSignals: 3 distinct paths within 30s is NOT enough', () => {
-  const hits = [hitAt(0, '/now'), hitAt(5000, '/friends'), hitAt(10000, '/ideas')]
+test('botSignals: 3 distinct paths within 15s is NOT enough', () => {
+  const hits = [hitAt(0, '/now'), hitAt(4000, '/friends'), hitAt(8000, '/ideas')]
   assert.deepEqual(botSignals(hits), [])
-})
-
-// botSignals / BOT_DETECTORS - repeated404
-test('botSignals: same path 404ing 4 times within 30s is flagged', () => {
-  const hits = [hitAt(0, '/dead', 404), hitAt(5000, '/dead', 404), hitAt(10000, '/dead', 404), hitAt(15000, '/dead', 404)]
-  assert.deepEqual(botSignals(hits), ['404 scan'])
-})
-
-test('botSignals: 4 total 404s split across 2 paths is flagged (below pathVelocity distinct-path threshold)', () => {
-  const hits = [hitAt(0, '/private.key', 404), hitAt(5000, '/private.key', 404), hitAt(10000, '/id_rsa', 404), hitAt(15000, '/id_rsa', 404)]
-  assert.deepEqual(botSignals(hits), ['404 scan'])
-})
-
-test('botSignals: 3 total 404s across mixed paths is NOT enough', () => {
-  const hits = [hitAt(0, '/a', 404), hitAt(5000, '/a', 404), hitAt(10000, '/b', 404)]
-  assert.deepEqual(botSignals(hits), [])
-})
-
-test('botSignals: same path reloaded 4 times with 200 is NOT flagged', () => {
-  const hits = [hitAt(0, '/', 200), hitAt(5000, '/', 200), hitAt(10000, '/', 200), hitAt(15000, '/', 200)]
-  assert.deepEqual(botSignals(hits), [])
-})
-
-test('botSignals: both detectors can fire together', () => {
-  const hits = [
-    hitAt(0, '/a', 404), hitAt(1000, '/a', 404), hitAt(2000, '/a', 404), hitAt(3000, '/a', 404),
-    hitAt(4000, '/b'), hitAt(5000, '/c'), hitAt(6000, '/d')
-  ]
-  assert.deepEqual(botSignals(hits), ['rapid multi-page crawl', '404 scan'])
 })
 
 // getBotFlaggedIps
 test('getBotFlaggedIps: flags only the IP matching a burst pattern', () => {
   const hits = [
     { ip_hash: 'bot-ip', ...hitAt(0, '/now') },
-    { ip_hash: 'bot-ip', ...hitAt(5000, '/friends') },
-    { ip_hash: 'bot-ip', ...hitAt(10000, '/ideas') },
-    { ip_hash: 'bot-ip', ...hitAt(15000, '/uses') },
+    { ip_hash: 'bot-ip', ...hitAt(4000, '/friends') },
+    { ip_hash: 'bot-ip', ...hitAt(8000, '/ideas') },
+    { ip_hash: 'bot-ip', ...hitAt(12000, '/uses') },
     { ip_hash: 'human-ip', ...hitAt(0, '/') },
     { ip_hash: 'human-ip', ...hitAt(20000, '/about') }
   ]
@@ -228,28 +212,40 @@ test('getBotFlaggedIps: flags only the IP matching a burst pattern', () => {
 
 test('getBotFlaggedIps: hits are grouped and sorted per IP regardless of input order', () => {
   const hits = [
-    { ip_hash: 'bot-ip', ...hitAt(15000, '/uses') },
+    { ip_hash: 'bot-ip', ...hitAt(12000, '/uses') },
     { ip_hash: 'bot-ip', ...hitAt(0, '/now') },
-    { ip_hash: 'bot-ip', ...hitAt(10000, '/ideas') },
-    { ip_hash: 'bot-ip', ...hitAt(5000, '/friends') }
+    { ip_hash: 'bot-ip', ...hitAt(8000, '/ideas') },
+    { ip_hash: 'bot-ip', ...hitAt(4000, '/friends') }
   ]
   assert.equal(getBotFlaggedIps(hits).has('bot-ip'), true)
 })
 
 test('getBotFlaggedIps: ignores hits with no ip_hash', () => {
-  const hits = [hitAt(0, '/now'), hitAt(5000, '/friends'), hitAt(10000, '/ideas'), hitAt(15000, '/uses')]
+  const hits = [hitAt(0, '/now'), hitAt(4000, '/friends'), hitAt(8000, '/ideas'), hitAt(12000, '/uses')]
   assert.equal(getBotFlaggedIps(hits).size, 0)
 })
 
-// getBotFlaggedIps: ASN-pooled 404 burst - catches a scanner rotating
-// through several IPs on one hosting provider, where no single IP alone
-// crosses the 404 threshold.
-test('getBotFlaggedIps: 4 IPs on the same ASN each 404ing once in the burst are all flagged', () => {
+// getBotFlaggedIps: ASN-pooled path-velocity burst - catches a scanner or
+// content scraper rotating through several IPs on one hosting provider or
+// residential ISP (one page per IP), where no single IP alone crosses the
+// per-IP distinct-path threshold.
+test('getBotFlaggedIps: 4 IPs on the same ASN each loading one distinct page in the burst are all flagged', () => {
   const hits = [
-    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 404) },
-    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(5000, '/b', 404) },
-    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(10000, '/c', 404) },
-    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(15000, '/d', 404) }
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(8000, '/c') },
+    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(12000, '/d') }
+  ]
+  const flagged = getBotFlaggedIps(hits)
+  for (const ip of ['ip-1', 'ip-2', 'ip-3', 'ip-4']) assert.equal(flagged.has(ip), true)
+})
+
+test('getBotFlaggedIps: ASN pooling ignores status - a mix of 200s and 404s across the ASN still counts as a distinct-path burst', () => {
+  const hits = [
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 200) },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(4000, '/b', 404) },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(8000, '/c', 200) },
+    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(12000, '/d', 404) }
   ]
   const flagged = getBotFlaggedIps(hits)
   for (const ip of ['ip-1', 'ip-2', 'ip-3', 'ip-4']) assert.equal(flagged.has(ip), true)
@@ -257,29 +253,39 @@ test('getBotFlaggedIps: 4 IPs on the same ASN each 404ing once in the burst are 
 
 test('getBotFlaggedIps: an IP on the same ASN but outside the triggering window is not flagged', () => {
   const hits = [
-    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 404) },
-    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(5000, '/b', 404) },
-    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(10000, '/c', 404) },
-    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(15000, '/d', 404) },
-    { ip_hash: 'late-ip', asn: 'AS1234', ...hitAt(120000, '/e', 404) }
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(8000, '/c') },
+    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(12000, '/d') },
+    { ip_hash: 'late-ip', asn: 'AS1234', ...hitAt(120000, '/e') }
   ]
   assert.equal(getBotFlaggedIps(hits).has('late-ip'), false)
 })
 
-test('getBotFlaggedIps: 3 total 404s across an ASN is not enough to flag anyone', () => {
+test('getBotFlaggedIps: 3 distinct paths across an ASN is not enough to flag anyone', () => {
   const hits = [
-    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a', 404) },
-    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(5000, '/b', 404) },
-    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(10000, '/c', 404) }
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(8000, '/c') }
+  ]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
+test('getBotFlaggedIps: several IPs on the same ASN all loading the SAME path is NOT pooled as a burst (e.g. an ISP full of real visitors hitting the homepage)', () => {
+  const hits = [
+    { ip_hash: 'ip-1', asn: 'AS1234', ...hitAt(0, '/') },
+    { ip_hash: 'ip-2', asn: 'AS1234', ...hitAt(4000, '/') },
+    { ip_hash: 'ip-3', asn: 'AS1234', ...hitAt(8000, '/') },
+    { ip_hash: 'ip-4', asn: 'AS1234', ...hitAt(12000, '/') }
   ]
   assert.equal(getBotFlaggedIps(hits).size, 0)
 })
 
 test('getBotFlaggedIps: hits with no asn are ignored by ASN pooling without crashing', () => {
   const hits = [
-    { ip_hash: 'ip-1', ...hitAt(0, '/a', 404) },
-    { ip_hash: 'ip-2', ...hitAt(5000, '/b', 404) },
-    { ip_hash: 'ip-3', ...hitAt(10000, '/c', 404) }
+    { ip_hash: 'ip-1', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', ...hitAt(8000, '/c') }
   ]
   assert.equal(getBotFlaggedIps(hits).size, 0)
 })
@@ -290,9 +296,9 @@ test('getBotFlaggedIps: hits with no asn are ignored by ASN pooling without cras
 test('getBotFlaggedIps: 4 hits in one burst is one flagged IP, which becomes 4 excluded/bot hits downstream', () => {
   const hits = [
     { ip_hash: 'bot-ip', ...hitAt(0, '/now') },
-    { ip_hash: 'bot-ip', ...hitAt(5000, '/friends') },
-    { ip_hash: 'bot-ip', ...hitAt(10000, '/ideas') },
-    { ip_hash: 'bot-ip', ...hitAt(15000, '/uses') }
+    { ip_hash: 'bot-ip', ...hitAt(4000, '/friends') },
+    { ip_hash: 'bot-ip', ...hitAt(8000, '/ideas') },
+    { ip_hash: 'bot-ip', ...hitAt(12000, '/uses') }
   ]
   const flagged = getBotFlaggedIps(hits)
   assert.equal(flagged.size, 1)
@@ -308,11 +314,11 @@ test('getBotFlaggedIps: flags an IP for its whole window, including hits well be
   const hits = [
     { ip_hash: 'shared-ip', ...hitAt(0, '/normal-page-1') },
     { ip_hash: 'shared-ip', ...hitAt(60000, '/normal-page-2') },
-    // burst starts two minutes later
+    // burst starts one minute later
     { ip_hash: 'shared-ip', ...hitAt(120000, '/now') },
-    { ip_hash: 'shared-ip', ...hitAt(125000, '/friends') },
-    { ip_hash: 'shared-ip', ...hitAt(130000, '/ideas') },
-    { ip_hash: 'shared-ip', ...hitAt(135000, '/uses') }
+    { ip_hash: 'shared-ip', ...hitAt(124000, '/friends') },
+    { ip_hash: 'shared-ip', ...hitAt(128000, '/ideas') },
+    { ip_hash: 'shared-ip', ...hitAt(132000, '/uses') }
   ]
   const flagged = getBotFlaggedIps(hits)
   assert.equal(flagged.has('shared-ip'), true)

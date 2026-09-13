@@ -253,7 +253,7 @@ const extrasCell = (hit, rawRef) => {
   // human" and "probably bot" on the same row would just be confusing.
   let face = ''
   if (hit.botFlagged) {
-    face = \`<span title="Behavioral bot detection: rapid multi-page crawl or repeated 404s within 30 seconds">\${BOT_ICON}</span>\`
+    face = \`<span title="Behavioral bot detection: 4+ distinct pages within 15 seconds, alone or pooled across an IP-rotating network">\${BOT_ICON}</span>\`
   } else {
     const signals = humanSignals(hit)
     // Accent color means mobile specifically, not "2+ signals of any kind" -

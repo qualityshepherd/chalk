@@ -159,11 +159,10 @@ export const sanitizeHitPayload = (payload, now = Date.now()) => {
   }
 }
 
-const BURST_WINDOW_MS = 30 * 1000
+const BURST_WINDOW_MS = 15 * 1000
 const BURST_DISTINCT_PATH_THRESHOLD = 4
-const REPEAT_404_THRESHOLD = 4
 
-// Returns the first 30-second window (time-sorted hit list) satisfying the
+// Returns the first 15-second window (time-sorted hit list) satisfying the
 // predicate, or null. O(n^2) in the worst case but n is one IP's (or one
 // ASN's) hits in the requested range, never remotely large enough to matter.
 const findBurstWindow = (hits, predicate) => {
@@ -177,6 +176,14 @@ const findBurstWindow = (hits, predicate) => {
 
 const hasBurstMatching = (hits, predicate) => findBurstWindow(hits, predicate) !== null
 
+// No real human loads 4+ distinct pages in 15 seconds, regardless of what
+// those requests returned - a 404 mixed into a crawl is no less suspicious
+// than a 200. Reusing one path repeatedly (e.g. Rando's reroll-by-refresh,
+// or a scanner hammering the same dead endpoint) is deliberately NOT
+// flagged here - only breadth of distinct pages counts, so a real visitor
+// refreshing is never at risk.
+const distinctPathBurst = (window) => new Set(window.map(h => h.path)).size >= BURST_DISTINCT_PATH_THRESHOLD
+
 // Symmetric to HUMAN_DETECTORS (analyticsTemplate.js) but the opposite
 // polarity: evidence a visitor is a bot, not evidence they're human.
 // Deliberately behavioral (needs multiple hits) rather than per-hit, which
@@ -185,34 +192,24 @@ const hasBurstMatching = (hits, predicate) => findBurstWindow(hits, predicate) !
 // you've seen several hits arrive.
 export const BOT_DETECTORS = [
   {
-    // No real human generates 4+ distinct page loads in 30 seconds. Reusing
-    // one path repeatedly (e.g. Rando's reroll-by-refresh) is deliberately
-    // NOT flagged - only breadth of distinct pages counts here.
     name: 'pathVelocity',
-    test: (hits) => hasBurstMatching(hits, (window) => new Set(window.map(h => h.path)).size >= BURST_DISTINCT_PATH_THRESHOLD),
+    test: (hits) => hasBurstMatching(hits, distinctPathBurst),
     label: () => 'rapid multi-page crawl'
-  },
-  {
-    // Any path, same or different - 4 dead requests in 30 seconds is a scan,
-    // not a person. A real visitor can occasionally hit one stale 404 off a
-    // cached page after a deploy; four in the same burst isn't that.
-    name: 'repeated404',
-    test: (hits) => hasBurstMatching(hits, (window) =>
-      window.filter(h => h.status === 404).length >= REPEAT_404_THRESHOLD),
-    label: () => '404 scan'
   }
 ]
 
 export const botSignals = (hits) => BOT_DETECTORS.filter(d => d.test(hits)).map(d => d.label())
 
-// Same 404-burst rule as repeated404, but pooled across every IP sharing an
-// ASN - catches a scanner rotating through a pool of addresses on one
-// hosting provider, which no single-IP detector can see (each IP alone
-// might only ever send 1-2 hits). Only the IPs actually present in the
-// triggering window get flagged, not the whole ASN's traffic for the period
-// - an ASN can be a hosting company with thousands of unrelated tenants,
-// and pooling anything weaker than "dead requests" (e.g. page-load volume)
-// across that many strangers would misfire constantly.
+// Same distinct-path-burst rule as pathVelocity, but pooled across every IP
+// sharing an ASN - catches a scanner rotating through a pool of addresses
+// on one hosting provider or residential ISP, which no single-IP detector
+// can see (each IP alone might only ever send 1-2 hits). Only the IPs
+// actually present in the triggering window get flagged, not the whole
+// ASN's traffic for the period - an ASN can be a hosting company or ISP
+// with thousands of unrelated tenants, and the 15-second window is what
+// keeps this safe: several genuinely different visitors on a shared ASN
+// each loading a different one of your pages within 15 seconds isn't a
+// realistic coincidence at this site's traffic volume.
 const asnBurstFlaggedIps = (hits) => {
   const byAsn = new Map()
   for (const hit of hits) {
@@ -223,7 +220,7 @@ const asnBurstFlaggedIps = (hits) => {
   const flagged = new Set()
   for (const asnHits of byAsn.values()) {
     asnHits.sort((a, b) => a.ts - b.ts)
-    const window = findBurstWindow(asnHits, (w) => w.filter(h => h.status === 404).length >= REPEAT_404_THRESHOLD)
+    const window = findBurstWindow(asnHits, distinctPathBurst)
     if (window) for (const hit of window) flagged.add(hit.ip_hash)
   }
   return flagged
