@@ -182,9 +182,6 @@ const handleAnalyticsData = withAuth(async (req, env) => {
 
     if (botFlaggedIps.has(hit.ip_hash)) {
       day.velocityBots++
-      if (day.recentHits.length < 100) {
-        day.recentHits.push({ ts: hit.ts, path: hit.path, country: hit.country, region: hit.region, city: hit.city, ip: hit.ip_hash, referrer: hit.referrer, device: hit.device, asn: hit.asn, asOrganization: hit.as_organization, httpProtocol: hit.http_protocol, botFlagged: true })
-      }
       continue
     }
 
@@ -204,7 +201,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
     }
     day.byDevice[hit.device || 'desktop'] = (day.byDevice[hit.device || 'desktop'] || 0) + 1
     if (day.recentHits.length < 100) {
-      day.recentHits.push({ ts: hit.ts, path: hit.path, country: hit.country, region: hit.region, city: hit.city, ip: hit.ip_hash, referrer: hit.referrer, device: hit.device, asn: hit.asn, asOrganization: hit.as_organization, httpProtocol: hit.http_protocol })
+      day.recentHits.push({ ts: hit.ts, path: hit.path, country: hit.country, region: hit.region, city: hit.city, ip: hit.ip_hash, referrer: hit.referrer, device: hit.device, asn: hit.asn, asOrganization: hit.as_organization, httpProtocol: hit.http_protocol, status: hit.status })
     }
   }
 

@@ -130,5 +130,10 @@ test('groupSessions: sessions are sorted with the most recently started one firs
 
 test('groupSessions: per-hit fields default to empty string when missing, not undefined', () => {
   const sessions = groupSessions([{ ip: 'ip-1', ts: 0, path: '/a' }], 1)
-  assert.deepEqual(sessions[0].hits[0], { path: '/a', ts: 0, referrer: '', device: '', asn: '', asOrganization: '', httpProtocol: '' })
+  assert.deepEqual(sessions[0].hits[0], { path: '/a', ts: 0, referrer: '', device: '', asn: '', asOrganization: '', httpProtocol: '', status: undefined })
+})
+
+test('groupSessions: status passes through unmodified when present (no default - a real status code, including falsy-ish ones, must survive)', () => {
+  const sessions = groupSessions([{ ip: 'ip-1', ts: 0, path: '/a', status: 404 }], 1)
+  assert.equal(sessions[0].hits[0].status, 404)
 })

@@ -32,7 +32,8 @@ export const groupSessions = (hits, days) => {
         device: hit.device || '',
         asn: hit.asn || '',
         asOrganization: hit.asOrganization || '',
-        httpProtocol: hit.httpProtocol || ''
+        httpProtocol: hit.httpProtocol || '',
+        status: hit.status
       })
     }
   }
