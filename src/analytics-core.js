@@ -13,7 +13,7 @@ const BOT_PREFIXES = [
 const BOT_PATHS = [
   '%24', '%3c', '%3e', '%40vite', '%7b', '${', '../', '..\\', '<', '"/',
   '.asp', '.aspx', '.aws', '.ds_store', '.env',
-  '.git', '.npmrc', '.php', '.sql', '.vscode',
+  '.git', '.npmrc', '.php', '.sql', '.svn', '.vscode',
   '@vite', 'actuator', 'admin', 'alvin9999', 'backup',
   'cgi-bin', 'composer.json', 'computemetadata', 'config',
   'console/', 'credentials', 'debug.log',
