@@ -10,7 +10,7 @@ import {
   SESSION_TTL_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS,
   CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS, CHALLENGE_RATE_LIMIT_WINDOW_MS
 } from './auth.js'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, hashIp, sanitizeHitPayload, getBotFlaggedIps } from './analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, classifyRssClient, hashIp, sanitizeHitPayload, getBotFlaggedIps } from './analytics-core.js'
 
 const COOKIE_NAME = 'chalk_session'
 
@@ -72,6 +72,7 @@ async function handleHit (req, env) {
 
   const device = parseDevice(ua)
   const rss = rssFeed ? parseRssSubscribers(ua) : null
+  const rssClient = rssFeed ? classifyRssClient(ua) : null
   const ipHash = await hashIp(ip)
 
   await insertHit(env.DB, {
@@ -87,6 +88,7 @@ async function handleHit (req, env) {
     asn,
     rss_feed: rssFeed || null,
     rss_subs: rss ? rss.subscribers : null,
+    rss_client: rssClient,
     as_organization: asOrganization,
     http_protocol: httpProtocol,
     status
@@ -142,6 +144,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
         byReferrer: {},
         byDevice: { mobile: 0, desktop: 0 },
         byRss: {},
+        byRssClient: {},
         recentHits: [],
         _ips: new Set(),
         velocityBots: 0
@@ -175,8 +178,11 @@ const handleAnalyticsData = withAuth(async (req, env) => {
     const day = dayMap.get(date)
 
     if (hit.rss_feed) {
-      const prev = day.byRss[hit.rss_feed] || { hits: 0, subscribers: 0 }
-      day.byRss[hit.rss_feed] = { hits: prev.hits + 1, subscribers: Math.max(prev.subscribers, hit.rss_subs || 0) }
+      const client = hit.rss_client || 'Unknown'
+      const prev = day.byRss[hit.rss_feed] || { hits: 0, subscribers: 0, aggregators: {} }
+      prev.aggregators[client] = (prev.aggregators[client] || 0) + 1
+      day.byRss[hit.rss_feed] = { hits: prev.hits + 1, subscribers: Math.max(prev.subscribers, hit.rss_subs || 0), aggregators: prev.aggregators }
+      day.byRssClient[client] = (day.byRssClient[client] || 0) + 1
       continue
     }
 

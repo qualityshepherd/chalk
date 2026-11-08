@@ -52,6 +52,7 @@ export const aggregate = (allData) => {
   const byCountry = {}
   const byReferrer = {}
   const byRss = {}
+  const byRssClient = {}
   const byDevice = { mobile: 0, desktop: 0 }
   const byHour = Array(24).fill(0)
   const byDow = Array(7).fill(0)
@@ -69,6 +70,7 @@ export const aggregate = (allData) => {
       byRss[feed].subscribers = Math.max(byRss[feed].subscribers, v.subscribers || 0)
       for (const [agg, count] of Object.entries(v.aggregators || {})) byRss[feed].aggregators[agg] = (byRss[feed].aggregators[agg] || 0) + count
     }
+    for (const [k, v] of Object.entries(data.byRssClient || {})) byRssClient[k] = (byRssClient[k] || 0) + v
     byDevice.mobile += data.byDevice?.mobile || 0
     byDevice.desktop += data.byDevice?.desktop || 0
     ;(data.byHour || []).forEach((count, i) => { byHour[i] += count })
@@ -76,5 +78,5 @@ export const aggregate = (allData) => {
     recentHits.push(...(data.recentHits || []))
   }
   recentHits.sort((a, b) => b.ts - a.ts)
-  return { totalHits, totalBots, byPath, byCountry, byReferrer, byRss, byDevice, byHour, byDow, recentHits }
+  return { totalHits, totalBots, byPath, byCountry, byReferrer, byRss, byRssClient, byDevice, byHour, byDow, recentHits }
 }

@@ -258,6 +258,7 @@ const render = ({ days: allData, truncated, totalUniques }) => {
   const topPaths = Object.entries(stats.byPath).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const topCountries = Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const topRefs = Object.entries(stats.byReferrer).sort((a, b) => b[1] - a[1]).slice(0, 10)
+  const topRssClients = Object.entries(stats.byRssClient || {}).sort((a, b) => b[1] - a[1]).slice(0, 10)
 
   const hourLabels = Array.from({length: 24}, (_, i) => i === 0 ? '12a' : i < 12 ? \`\${i}a\` : i === 12 ? '12p' : \`\${i-12}p\`)
 
@@ -297,7 +298,9 @@ const render = ({ days: allData, truncated, totalUniques }) => {
   document.getElementById('charts').innerHTML =
     \`<div class="charts-grid">\` +
       \`<div><h2>top paths <span class="has-tip" title="referrers">↗<div class="tip">\${refsTip}</div></span></h2><div>\${bars(topPaths)}</div></div>\` +
-      \`<div><h2>top countries</h2><div>\${bars(topCountries, true)}</div></div>\` +
+      (totalRssHits > 0
+        ? \`<div><h2>top rss clients</h2><div>\${bars(topRssClients)}</div></div>\`
+        : \`<div><h2>top countries</h2><div>\${bars(topCountries, true)}</div></div>\`) +
     \`</div>\`
 
   renderLogs()

@@ -80,6 +80,47 @@ export const parseRssSubscribers = (ua) => {
   return null
 }
 
+// AI crawlers/agents fetching RSS feeds, from Cloudflare Radar's bot list
+// (cloudflare.com/radar/bots). Order matters - check the "-User"/"Extended"
+// agent tokens before the plain crawler token where one contains the other
+// (e.g. "ChatGPT-User" before "GPTBot" doesn't matter here, but keep this
+// pattern if we ever add overlapping names).
+const RSS_CLIENT_PATTERNS = [
+  { re: /ChatGPT-User/i, name: 'ChatGPT-User' },
+  { re: /OAI-SearchBot/i, name: 'OAI-SearchBot' },
+  { re: /GPTBot/i, name: 'GPTBot' },
+  { re: /Claude-User/i, name: 'Claude-User' },
+  { re: /Claude-SearchBot/i, name: 'Claude-SearchBot' },
+  { re: /ClaudeBot/i, name: 'ClaudeBot' },
+  { re: /Perplexity-User/i, name: 'Perplexity-User' },
+  { re: /PerplexityBot/i, name: 'PerplexityBot' },
+  { re: /Google-Extended/i, name: 'Google-Extended' },
+  { re: /Googlebot/i, name: 'Googlebot' },
+  { re: /bingbot/i, name: 'Bingbot' },
+  { re: /Bytespider/i, name: 'Bytespider' },
+  { re: /Amazonbot/i, name: 'Amazonbot' },
+  { re: /DuckAssistBot/i, name: 'DuckAssistBot' },
+  { re: /Applebot-Extended/i, name: 'Applebot-Extended' },
+  { re: /Applebot/i, name: 'Applebot' },
+  { re: /CCBot/i, name: 'CCBot' },
+  { re: /meta-externalagent/i, name: 'Meta' },
+  { re: /facebookexternalhit/i, name: 'Meta' }
+]
+
+// Classifies who's actually fetching an RSS feed - a named AI crawler/agent,
+// a known human aggregator (Feedly, NewsBlur, etc via the subscriber-count
+// patterns above), or Unknown. Only meaningful for rss_feed hits - callers
+// gate on that.
+export const classifyRssClient = (ua) => {
+  if (!ua) return 'Unknown'
+  for (const { re, name } of RSS_CLIENT_PATTERNS) {
+    if (re.test(ua)) return name
+  }
+  const subs = parseRssSubscribers(ua)
+  if (subs) return subs.aggregator
+  return 'Unknown'
+}
+
 const MOBILE_RE = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i
 
 export const parseDevice = (ua) => {
