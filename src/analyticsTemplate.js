@@ -113,13 +113,16 @@ const fmtTs = (ts) => {
   return date + dateObj.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })
 }
 
-const bars = (items, isCountry = false) => items.map(([name, count]) => {
+const bars = (items, isCountry = false, tooltips = null) => items.map(([name, count]) => {
   const label = isCountry ? \`\${flag(name)}\${escapeHtml(countryName(name))}\` : escapeHtml(name)
-  const title = isCountry ? escapeHtml(countryName(name)) : escapeHtml(name)
-  return \`<div class="bar-wrap" title="\${title}">\` +
+  const title = isCountry ? \` title="\${escapeHtml(countryName(name))}"\` : ''
+  const tip = tooltips && tooltips[name]
+  return \`<div class="bar-wrap"\${title}>\` +
     \`<span class="label">\${label}</span>\` +
     \`<div class="bar" style="width:\${Math.round(count / (items[0]?.[1] || 1) * 120)}px"></div>\` +
-    \`<span class="count">\${count}</span></div>\`
+    \`<span class="count">\${count}</span>\` +
+    (tip ? \`<span class="has-tip" title="">↗<div class="tip">\${tip}</div></span>\` : '') +
+    \`</div>\`
 }).join('')
 
 const heatmap = (data, labels, cls) => {
@@ -258,7 +261,12 @@ const render = ({ days: allData, truncated, totalUniques }) => {
   const topPaths = Object.entries(stats.byPath).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const topCountries = Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const topRefs = Object.entries(stats.byReferrer).sort((a, b) => b[1] - a[1]).slice(0, 10)
-  const topRssClients = Object.entries(stats.byRssClient || {}).sort((a, b) => b[1] - a[1]).slice(0, 10)
+  const topRssClients = Object.entries(stats.byRssClient || {}).map(([name, v]) => [name, v.hits || 0]).sort((a, b) => b[1] - a[1]).slice(0, 10)
+  const rssClientTips = {}
+  for (const [name, v] of Object.entries(stats.byRssClient || {})) {
+    rssClientTips[name] = Object.entries(v.paths || {}).sort((a, b) => b[1] - a[1])
+      .map(([path, count]) => \`<div class="tip-row"><span>\${escapeHtml(path)}</span><strong>\${count}</strong></div>\`).join('')
+  }
 
   const hourLabels = Array.from({length: 24}, (_, i) => i === 0 ? '12a' : i < 12 ? \`\${i}a\` : i === 12 ? '12p' : \`\${i-12}p\`)
 
@@ -299,7 +307,7 @@ const render = ({ days: allData, truncated, totalUniques }) => {
     \`<div class="charts-grid">\` +
       \`<div><h2>top paths <span class="has-tip" title="referrers">↗<div class="tip">\${refsTip}</div></span></h2><div>\${bars(topPaths)}</div></div>\` +
       (totalRssHits > 0
-        ? \`<div><h2>top rss clients</h2><div>\${bars(topRssClients)}</div></div>\`
+        ? \`<div><h2>top rss clients</h2><div>\${bars(topRssClients, false, rssClientTips)}</div></div>\`
         : \`<div><h2>top countries</h2><div>\${bars(topCountries, true)}</div></div>\`) +
     \`</div>\`
 

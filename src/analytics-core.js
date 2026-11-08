@@ -94,17 +94,45 @@ const RSS_CLIENT_PATTERNS = [
   { re: /ClaudeBot/i, name: 'ClaudeBot' },
   { re: /Perplexity-User/i, name: 'Perplexity-User' },
   { re: /PerplexityBot/i, name: 'PerplexityBot' },
-  { re: /Google-Extended/i, name: 'Google-Extended' },
+  { re: /Google-Extended/i, name: 'Gemini' },
+  { re: /Googlebot-Image/i, name: 'Googlebot-Image' },
+  { re: /Googlebot-Video/i, name: 'Googlebot-Video' },
+  { re: /Googlebot-News/i, name: 'Googlebot-News' },
   { re: /Googlebot/i, name: 'Googlebot' },
   { re: /bingbot/i, name: 'Bingbot' },
   { re: /Bytespider/i, name: 'Bytespider' },
   { re: /Amazonbot/i, name: 'Amazonbot' },
   { re: /DuckAssistBot/i, name: 'DuckAssistBot' },
+  { re: /DuckDuckBot/i, name: 'DuckDuckBot' },
   { re: /Applebot-Extended/i, name: 'Applebot-Extended' },
   { re: /Applebot/i, name: 'Applebot' },
   { re: /CCBot/i, name: 'CCBot' },
-  { re: /meta-externalagent/i, name: 'Meta' },
-  { re: /facebookexternalhit/i, name: 'Meta' }
+  { re: /meta-externalagent/i, name: 'Meta-ExternalAgent' },
+  { re: /facebookexternalhit/i, name: 'Facebook' },
+  // Other search engines
+  { re: /YandexBot/i, name: 'YandexBot' },
+  { re: /Baiduspider/i, name: 'Baiduspider' },
+  { re: /PetalBot/i, name: 'PetalBot' },
+  { re: /SeznamBot/i, name: 'SeznamBot' },
+  { re: /Exabot/i, name: 'Exabot' },
+  { re: /SeekportBot/i, name: 'SeekportBot' },
+  { re: /Sogou/i, name: 'Sogou' },
+  { re: /MojeekBot/i, name: 'MojeekBot' },
+  { re: /Qwantify/i, name: 'Qwant' },
+  // SEO/backlink crawlers
+  { re: /AhrefsBot/i, name: 'AhrefsBot' },
+  { re: /SemrushBot/i, name: 'SemrushBot' },
+  { re: /MJ12bot/i, name: 'MJ12bot' },
+  { re: /DotBot/i, name: 'DotBot' },
+  { re: /BLEXBot/i, name: 'BLEXBot' },
+  { re: /DataForSeoBot/i, name: 'DataForSeoBot' },
+  // AI training-data / content-extraction crawlers
+  { re: /Diffbot/i, name: 'Diffbot' },
+  { re: /ImagesiftBot/i, name: 'ImagesiftBot' },
+  { re: /Omgilibot|Omgili/i, name: 'Omgili' },
+  { re: /FriendlyCrawler/i, name: 'FriendlyCrawler' },
+  { re: /Timpibot/i, name: 'Timpibot' },
+  { re: /YouBot/i, name: 'YouBot' }
 ]
 
 // Classifies who's actually fetching an RSS feed - a named AI crawler/agent,
@@ -267,6 +295,30 @@ const asnBurstFlaggedIps = (hits) => {
   return flagged
 }
 
+// Same idea again, pooled by city instead of ASN - catches a residential
+// proxy pool, where every request comes from a genuinely different IP *and*
+// a genuinely different ASN (different home ISPs), so neither pathVelocity
+// nor asnBurstFlaggedIps ever sees more than 1-2 hits from any single
+// bucket. Proxy pools are sold by region, so the city is usually the one
+// thing that doesn't get randomized away. Keyed on country+city together -
+// plenty of same-named cities exist in different countries.
+const cityBurstFlaggedIps = (hits) => {
+  const byCity = new Map()
+  for (const hit of hits) {
+    if (!hit.city || !hit.ip_hash) continue
+    const key = `${hit.country}\n${hit.city}`
+    if (!byCity.has(key)) byCity.set(key, [])
+    byCity.get(key).push(hit)
+  }
+  const flagged = new Set()
+  for (const cityHits of byCity.values()) {
+    cityHits.sort((a, b) => a.ts - b.ts)
+    const window = findBurstWindow(cityHits, distinctPathBurst)
+    if (window) for (const hit of window) flagged.add(hit.ip_hash)
+  }
+  return flagged
+}
+
 // Flags IPs, not hits - "this visitor acted like a bot somewhere in here,"
 // not "this specific hit is a bot." Callers decide what to do with that.
 // Exclude RSS/feed hits before calling - feed polling is already-expected
@@ -284,5 +336,6 @@ export const getBotFlaggedIps = (hits) => {
     if (botSignals(ipHits).length > 0) flagged.add(ip)
   }
   for (const ip of asnBurstFlaggedIps(hits)) flagged.add(ip)
+  for (const ip of cityBurstFlaggedIps(hits)) flagged.add(ip)
   return flagged
 }

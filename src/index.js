@@ -182,7 +182,10 @@ const handleAnalyticsData = withAuth(async (req, env) => {
       const prev = day.byRss[hit.rss_feed] || { hits: 0, subscribers: 0, aggregators: {} }
       prev.aggregators[client] = (prev.aggregators[client] || 0) + 1
       day.byRss[hit.rss_feed] = { hits: prev.hits + 1, subscribers: Math.max(prev.subscribers, hit.rss_subs || 0), aggregators: prev.aggregators }
-      day.byRssClient[client] = (day.byRssClient[client] || 0) + 1
+      const clientEntry = day.byRssClient[client] || { hits: 0, paths: {} }
+      clientEntry.hits++
+      clientEntry.paths[hit.path] = (clientEntry.paths[hit.path] || 0) + 1
+      day.byRssClient[client] = clientEntry
       continue
     }
 

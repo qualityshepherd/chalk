@@ -290,6 +290,51 @@ test('getBotFlaggedIps: hits with no asn are ignored by ASN pooling without cras
   assert.equal(getBotFlaggedIps(hits).size, 0)
 })
 
+// getBotFlaggedIps: city-pooled path-velocity burst - catches a residential
+// proxy pool, where every request comes from a genuinely different IP *and*
+// a genuinely different ASN (different home ISPs), so ASN pooling never
+// sees more than 1-2 hits from any single ASN either. City is usually the
+// one thing a proxy pool doesn't randomize away.
+test('getBotFlaggedIps: 4 IPs in the same city, different ASNs, each loading one distinct page in the burst are all flagged', () => {
+  const hits = [
+    { ip_hash: 'ip-1', country: 'US', city: 'Orem', asn: 'AS1', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', country: 'US', city: 'Orem', asn: 'AS2', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', country: 'US', city: 'Orem', asn: 'AS3', ...hitAt(8000, '/c') },
+    { ip_hash: 'ip-4', country: 'US', city: 'Orem', asn: 'AS4', ...hitAt(12000, '/d') }
+  ]
+  const flagged = getBotFlaggedIps(hits)
+  for (const ip of ['ip-1', 'ip-2', 'ip-3', 'ip-4']) assert.equal(flagged.has(ip), true)
+})
+
+test('getBotFlaggedIps: same city name in different countries is not pooled together', () => {
+  const hits = [
+    { ip_hash: 'ip-1', country: 'US', city: 'Paris', asn: 'AS1', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', country: 'FR', city: 'Paris', asn: 'AS2', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', country: 'US', city: 'Paris', asn: 'AS3', ...hitAt(8000, '/c') },
+    { ip_hash: 'ip-4', country: 'FR', city: 'Paris', asn: 'AS4', ...hitAt(12000, '/d') }
+  ]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
+test('getBotFlaggedIps: several IPs in the same city all loading the SAME path is NOT pooled as a burst', () => {
+  const hits = [
+    { ip_hash: 'ip-1', country: 'US', city: 'Orem', asn: 'AS1', ...hitAt(0, '/') },
+    { ip_hash: 'ip-2', country: 'US', city: 'Orem', asn: 'AS2', ...hitAt(4000, '/') },
+    { ip_hash: 'ip-3', country: 'US', city: 'Orem', asn: 'AS3', ...hitAt(8000, '/') },
+    { ip_hash: 'ip-4', country: 'US', city: 'Orem', asn: 'AS4', ...hitAt(12000, '/') }
+  ]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
+test('getBotFlaggedIps: hits with no city are ignored by city pooling without crashing', () => {
+  const hits = [
+    { ip_hash: 'ip-1', country: 'US', ...hitAt(0, '/a') },
+    { ip_hash: 'ip-2', country: 'US', ...hitAt(4000, '/b') },
+    { ip_hash: 'ip-3', country: 'US', ...hitAt(8000, '/c') }
+  ]
+  assert.equal(getBotFlaggedIps(hits).size, 0)
+})
+
 // getBotFlaggedIps: explicit semantics tests, per external review
 // (flagging is per-IP-for-the-whole-window, and bots/totalHits are both
 // hit-counts, not visitor-counts - see the comment in index.js)

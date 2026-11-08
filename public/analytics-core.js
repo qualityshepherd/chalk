@@ -70,7 +70,11 @@ export const aggregate = (allData) => {
       byRss[feed].subscribers = Math.max(byRss[feed].subscribers, v.subscribers || 0)
       for (const [agg, count] of Object.entries(v.aggregators || {})) byRss[feed].aggregators[agg] = (byRss[feed].aggregators[agg] || 0) + count
     }
-    for (const [k, v] of Object.entries(data.byRssClient || {})) byRssClient[k] = (byRssClient[k] || 0) + v
+    for (const [k, v] of Object.entries(data.byRssClient || {})) {
+      if (!byRssClient[k]) byRssClient[k] = { hits: 0, paths: {} }
+      byRssClient[k].hits += v.hits || 0
+      for (const [path, count] of Object.entries(v.paths || {})) byRssClient[k].paths[path] = (byRssClient[k].paths[path] || 0) + count
+    }
     byDevice.mobile += data.byDevice?.mobile || 0
     byDevice.desktop += data.byDevice?.desktop || 0
     ;(data.byHour || []).forEach((count, i) => { byHour[i] += count })
