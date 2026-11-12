@@ -2,7 +2,7 @@ import ANALYTICS_TEMPLATE from './analyticsTemplate.js'
 import {
   insertHit, incrementBotCount, queryHits, queryBotCounts, getDomains,
   createNonce, consumeNonce, createSession, getValidSession, deleteSession,
-  getRateLimit, incrementRateLimit, HITS_QUERY_LIMIT
+  getRateLimit, incrementRateLimit, HITS_QUERY_LIMIT, recordUnknownRssUa
 } from './db.js'
 import {
   parseCookies, sessionCookie, clearedSessionCookie, generateNonce, generateSessionToken,
@@ -93,6 +93,13 @@ async function handleHit (req, env) {
     http_protocol: httpProtocol,
     status
   }).catch(() => {})
+
+  // Temporary: samples raw UAs behind "Unknown" RSS clients so the pattern
+  // list in classifyRssClient can be expanded from real traffic. See
+  // recordUnknownRssUa in db.js.
+  if (rssFeed && rssClient === 'Unknown') {
+    await recordUnknownRssUa(env.DB, domain, path, ua, timestamp).catch(() => {})
+  }
 
   return new Response('ok')
 }

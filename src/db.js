@@ -40,6 +40,23 @@ export async function queryBotCounts (db, domain, sinceDate) {
   return results
 }
 
+// Temporary: caps distinct unknown UAs remembered per domain, so a flood of
+// unique garbage strings can't grow rss_unknown_ua unboundedly while this
+// debug collection is running.
+const UNKNOWN_RSS_UA_CAP = 300
+
+export async function recordUnknownRssUa (db, domain, path, ua, timestamp) {
+  const updated = await db.prepare(
+    'UPDATE rss_unknown_ua SET count = count + 1, last_seen = ?, path = ? WHERE domain = ? AND ua = ?'
+  ).bind(timestamp, path, domain, ua).run()
+  if (updated.meta.changes > 0) return
+  const { count } = await db.prepare('SELECT COUNT(*) AS count FROM rss_unknown_ua WHERE domain = ?').bind(domain).first()
+  if (count >= UNKNOWN_RSS_UA_CAP) return
+  await db.prepare(
+    'INSERT OR IGNORE INTO rss_unknown_ua (domain, ua, path, count, first_seen, last_seen) VALUES (?,?,?,1,?,?)'
+  ).bind(domain, ua, path, timestamp, timestamp).run()
+}
+
 export async function getDomains (db) {
   const { results } = await db.prepare(
     'SELECT domain FROM domains ORDER BY domain'
