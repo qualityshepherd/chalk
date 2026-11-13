@@ -65,10 +65,14 @@ const BOT_ASNS = new Set([
 // Known RSS aggregator UA patterns that include subscriber counts
 const RSS_SUBSCRIBER_PATTERNS = [
   { re: /Feedbin feed-id:\S+ - (\d+) subscribers?/i, name: 'Feedbin' },
-  { re: /NewsBlur\/(\d+) subscribers?/i, name: 'NewsBlur' },
-  { re: /inoreader\.com[^)]*\+(\d+) subscribers?\)/i, name: 'Inoreader' },
+  // Real UA is "NewsBlur Feed Fetcher - 1 subscriber - https://..." - no "NewsBlur/N"
+  { re: /NewsBlur.*?(\d+) subscribers?/i, name: 'NewsBlur' },
+  // Real UA is "Inoreader/1.0 (+http://...feed-fetcher; 1 subscribers; )" - no "+"
+  // before the count and no ")" right after it, unlike what this used to require
+  { re: /inoreader\.com.*?(\d+) subscribers?/i, name: 'Inoreader' },
   { re: /The Old Reader.*?(\d+) subscribers?/i, name: 'TheOldReader' },
-  { re: /Feedly\/1\.0 \((\d+) subscribers?/i, name: 'Feedly' }
+  { re: /Feedly\/1\.0 \((\d+) subscribers?/i, name: 'Feedly' },
+  { re: /Birchfeed.*?(\d+) subscribers?/i, name: 'Birchfeed' }
 ]
 
 export const parseRssSubscribers = (ua) => {
@@ -132,7 +136,19 @@ const RSS_CLIENT_PATTERNS = [
   { re: /Omgilibot|Omgili/i, name: 'Omgili' },
   { re: /FriendlyCrawler/i, name: 'FriendlyCrawler' },
   { re: /Timpibot/i, name: 'Timpibot' },
-  { re: /YouBot/i, name: 'YouBot' }
+  { re: /YouBot/i, name: 'YouBot' },
+  // Feed readers / podcast apps - not AI crawlers, just not named yet.
+  // Found by sampling real "Unknown" UAs via rss_unknown_ua.
+  { re: /RSScal/i, name: 'RSScal' },
+  { re: /Spotify/i, name: 'Spotify' },
+  { re: /FreshRSS/i, name: 'FreshRSS' },
+  { re: /iTMS/i, name: 'iTMS' },
+  { re: /SpaceCowboys/i, name: 'SpaceCowboys' },
+  { re: /davefeedread/i, name: 'davefeedread' },
+  { re: /HypeScroll/i, name: 'HypeScroll' },
+  { re: /CapyReader/i, name: 'CapyReader' },
+  { re: /BriskBot/i, name: 'BriskBot' },
+  { re: /Feedstand/i, name: 'Feedstand' }
 ]
 
 // Classifies who's actually fetching an RSS feed - a named AI crawler/agent,
