@@ -70,8 +70,8 @@ const locationTooltip = (city, region, countryCode) =>
   [city, region && region !== '?' ? region : null, countryName(countryCode)].filter(Boolean).join(', ')
 
 const renderDaysNav = (domain) => {
-  document.getElementById('nav').innerHTML = [1, 2, 7, 30, 365].map(dayCount => {
-    const label = dayCount === 1 ? 'today' : dayCount === 2 ? '2d' : dayCount === 7 ? 'week' : dayCount === 30 ? '30d' : 'year'
+  document.getElementById('nav').innerHTML = [1, 2, 7, 30, 90].map(dayCount => {
+    const label = dayCount === 1 ? 'today' : dayCount === 2 ? '2d' : dayCount === 7 ? 'week' : dayCount === 30 ? '30d' : '90d'
     return \`<a href="?days=\${dayCount}&domain=\${encodeURIComponent(domain)}"\${days === dayCount ? ' class="active"' : ''}>\${label}</a>\`
   }).join('')
 }
@@ -91,12 +91,12 @@ const flagEmoji = (code) => {
 
 const flag = (code) => {
   const emoji = flagEmoji(code)
-  return emoji ? \`<span title="\${countryName(code)}">\${emoji}</span> \` : ''
+  return emoji ? \`<span title="\${escapeHtml(countryName(code))}">\${emoji}</span> \` : ''
 }
 
 const flagWithRegion = (code, region) => {
   const emoji = flagEmoji(code)
-  return emoji ? \`<span title="\${locationTooltip(null, region, code)}">\${emoji}</span>\` : ''
+  return emoji ? \`<span title="\${escapeHtml(locationTooltip(null, region, code))}">\${emoji}</span>\` : ''
 }
 
 const formatNum = (n) => {

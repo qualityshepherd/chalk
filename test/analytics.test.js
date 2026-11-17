@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps } from '../src/analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps, hashIp } from '../src/analytics-core.js'
 
 test('isBot: wp-login is a bot', () => {
   assert.equal(isBot('/wp-login.php', 'Mozilla/5.0'), true)
@@ -372,4 +372,40 @@ test('getBotFlaggedIps: flags an IP for its whole window, including hits well be
   // mid-visitor between "before" and "after" they were confirmed automated.
   const excludedHits = hits.filter(h => flagged.has(h.ip_hash))
   assert.equal(excludedHits.length, 6)
+})
+
+test('hashIp: same ip and salt gives the same hash, so a visitor groups', async () => {
+  assert.equal(await hashIp('1.2.3.4', 'pepper'), await hashIp('1.2.3.4', 'pepper'))
+})
+
+test('hashIp: different ips under one salt differ', async () => {
+  assert.notEqual(await hashIp('1.2.3.4', 'pepper'), await hashIp('1.2.3.5', 'pepper'))
+})
+
+test('hashIp: the salt actually participates - same ip, different salt', async () => {
+  assert.notEqual(await hashIp('1.2.3.4', 'pepper'), await hashIp('1.2.3.4', 'oregano'))
+})
+
+test('hashIp: output is 16 hex chars (8 bytes), unchanged by salting', async () => {
+  assert.match(await hashIp('1.2.3.4', 'pepper'), /^[0-9a-f]{16}$/)
+})
+
+// The failure that matters: deploy without setting IP_SALT and an unsalted
+// hash would look exactly like a salted one in the table while protecting
+// nothing. Null instead, which every detector already skips.
+test('hashIp: no salt returns null rather than an unsalted hash', async () => {
+  assert.equal(await hashIp('1.2.3.4', undefined), null)
+  assert.equal(await hashIp('1.2.3.4', ''), null)
+})
+
+// Without a separator, salt 'ab' + ip 'c1.2.3.4' would hash identically to
+// salt 'abc' + ip '1.2.3.4'. Irrelevant with one fixed salt, free to rule out.
+test('hashIp: sliding the salt/ip boundary does not collide', async () => {
+  assert.notEqual(await hashIp('1.2.3.4', 'abc'), await hashIp('c1.2.3.4', 'ab'))
+})
+
+test('hashIp: ipv6 addresses hash fine', async () => {
+  const hash = await hashIp('2606:4700:4700::1111', 'pepper')
+  assert.match(hash, /^[0-9a-f]{16}$/)
+  assert.notEqual(hash, await hashIp('2606:4700:4700::1001', 'pepper'))
 })

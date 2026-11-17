@@ -1,4 +1,4 @@
-import { isSessionExpired, isNonceExpired, hashToken } from './auth.js'
+import { isSessionExpired, isNonceExpired, hashToken, SESSION_TTL_MS } from './auth.js'
 
 export async function insertHit (db, hit) {
   await db.prepare(
@@ -124,4 +124,37 @@ export async function incrementRateLimit (db, table, ip, now, windowMs) {
        count = CASE WHEN reset_at <= ? THEN 1 ELSE count + 1 END,
        reset_at = CASE WHEN reset_at <= ? THEN ? ELSE reset_at END`
   ).bind(ip, resetAt, now, now, resetAt).run()
+}
+
+// Retention sweep, run from the daily cron. Every server log on earth
+// rotates; this one never did, so it held every visitor since the table was
+// created. Batched so it's one round trip and all-or-nothing.
+export async function purgeExpired (db, now, retentionDays) {
+  const cutoffTs = now - retentionDays * 86400000
+  const cutoffDate = new Date(cutoffTs).toISOString().slice(0, 10)
+
+  const [hits, botCounts, logins, challenges, sessions] = await db.batch([
+    db.prepare('DELETE FROM hits WHERE ts < ?').bind(cutoffTs),
+
+    // No visitor in these - they're per-day totals. But nothing can render a
+    // day whose hits are gone, so they'd sit there forever unreadable.
+    db.prepare('DELETE FROM bot_counts WHERE date < ?').bind(cutoffDate),
+
+    // These two key on the raw address, not a hash - the only cleartext IPs
+    // in the database. An expired row already counts as no row, since the
+    // next attempt's UPSERT resets count to 1 either way, so dropping them
+    // changes no behaviour and is the one sweep here with a real reason
+    // beyond tidiness.
+    db.prepare('DELETE FROM login_attempts WHERE reset_at < ?').bind(now),
+    db.prepare('DELETE FROM challenge_attempts WHERE reset_at < ?').bind(now),
+
+    db.prepare('DELETE FROM sessions WHERE created_at < ?').bind(now - SESSION_TTL_MS)
+  ])
+
+  return {
+    hits: hits?.meta?.changes ?? 0,
+    botCounts: botCounts?.meta?.changes ?? 0,
+    rateLimits: (logins?.meta?.changes ?? 0) + (challenges?.meta?.changes ?? 0),
+    sessions: sessions?.meta?.changes ?? 0
+  }
 }

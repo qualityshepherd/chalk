@@ -181,8 +181,19 @@ export const isBot = (path, ua = '') => {
 
 export const isDatacenter = (asn) => asn && BOT_ASNS.has(Number(asn))
 
-export const hashIp = async (ip) => {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
+// Salted because unsalted this reverses trivially - IPv4 is 2^32 addresses,
+// the whole space rainbow-tables in minutes, and truncating to 8 bytes
+// doesn't help since you build the table truncated too.
+//
+// null when there's no salt, rather than hashing without one - that would
+// look identical in the table while protecting nothing. Every detector
+// already skips rows with no ip_hash, so a missing secret visibly zeroes
+// uniques rather than quietly faking anonymity.
+export const hashIp = async (ip, salt) => {
+  if (!salt) return null
+  // \n can't appear in an address, so no two salt+ip pairs collide by
+  // sliding the boundary between them
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}\n${ip}`))
   return Array.from(new Uint8Array(digest)).slice(0, 8).map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 

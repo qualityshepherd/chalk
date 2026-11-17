@@ -2,7 +2,7 @@ import ANALYTICS_TEMPLATE from './analyticsTemplate.js'
 import {
   insertHit, incrementBotCount, queryHits, queryBotCounts, getDomains,
   createNonce, consumeNonce, createSession, getValidSession, deleteSession,
-  getRateLimit, incrementRateLimit, HITS_QUERY_LIMIT, recordUnknownRssUa
+  getRateLimit, incrementRateLimit, HITS_QUERY_LIMIT, recordUnknownRssUa, purgeExpired
 } from './db.js'
 import {
   parseCookies, sessionCookie, clearedSessionCookie, generateNonce, generateSessionToken,
@@ -73,7 +73,7 @@ async function handleHit (req, env) {
   const device = parseDevice(ua)
   const rss = rssFeed ? parseRssSubscribers(ua) : null
   const rssClient = rssFeed ? classifyRssClient(ua) : null
-  const ipHash = await hashIp(ip)
+  const ipHash = await hashIp(ip, env.IP_SALT)
 
   await insertHit(env.DB, {
     domain,
@@ -108,9 +108,13 @@ async function handleHit (req, env) {
 // silently fell through to an empty result before this existed. 365 to
 // match the UI's "year" option - it used to cap at 90 while the nav still
 // offered 365, silently returning a quarter of what it claimed to show.
+// Hits older than this are swept nightly, so the dashboard can't be asked
+// for a window that's mostly guaranteed-empty days.
+export const RETENTION_DAYS = 90
+
 export const clampDays = (raw) => {
   const parsed = parseInt(raw ?? '7', 10)
-  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 365) : 7
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), RETENTION_DAYS) : 7
 }
 
 // GET /api/analytics?domain=brine.dev&days=7
@@ -316,5 +320,13 @@ export default {
     if (method === 'GET' && pathname === '/login') return env.ASSETS.fetch(new Request(new URL('/login.html', req.url), req))
 
     return env.ASSETS.fetch(req)
+  },
+
+  // Deliberately uncaught - a sweep that quietly stops working would leave
+  // the table growing with nothing to show it. Let it fail the invocation
+  // and show up as one.
+  async scheduled (event, env, ctx) {
+    const purged = await purgeExpired(env.DB, Date.now(), RETENTION_DAYS)
+    console.log('purge', JSON.stringify(purged))
   }
 }
