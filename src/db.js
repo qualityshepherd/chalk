@@ -126,15 +126,22 @@ export async function incrementRateLimit (db, table, ip, now, windowMs) {
   ).bind(ip, resetAt, now, now, resetAt).run()
 }
 
+// D1 bills a delete as a write, plus one per index (hits has two), so each
+// hit costs ~3. The free tier is 100k writes a day across the account. The
+// first unbounded sweep ate all of it; this drains a backlog over days.
+export const PURGE_HITS_PER_RUN = 5000
+
 // Retention sweep, run from the daily cron. Every server log on earth
 // rotates; this one never did, so it held every visitor since the table was
 // created. Batched so it's one round trip and all-or-nothing.
-export async function purgeExpired (db, now, retentionDays) {
+export async function purgeExpired (db, now, retentionDays, maxHits = PURGE_HITS_PER_RUN) {
   const cutoffTs = now - retentionDays * 86400000
   const cutoffDate = new Date(cutoffTs).toISOString().slice(0, 10)
 
   const [hits, botCounts, logins, challenges, sessions] = await db.batch([
-    db.prepare('DELETE FROM hits WHERE ts < ?').bind(cutoffTs),
+    db.prepare(
+      'DELETE FROM hits WHERE rowid IN (SELECT rowid FROM hits WHERE ts < ? ORDER BY ts LIMIT ?)'
+    ).bind(cutoffTs, maxHits),
 
     // No visitor in these - they're per-day totals. But nothing can render a
     // day whose hits are gone, so they'd sit there forever unreadable.

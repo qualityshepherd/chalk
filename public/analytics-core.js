@@ -84,3 +84,38 @@ export const aggregate = (allData) => {
   recentHits.sort((a, b) => b.ts - a.ts)
   return { totalHits, totalBots, byPath, byCountry, byReferrer, byRss, byRssClient, byDevice, byHour, byDow, recentHits }
 }
+
+// Not proof of anything - every hit shown here already cleared the
+// ingestion-time bot/datacenter filter, so "0 signals" means unscored, not
+// "probably bot". A match is extra confidence; silence is never suspicion.
+// Coverage is necessarily US/EU-carrier-heavy since that's what's
+// nameable by hand - a real human on a smaller regional ISP just won't
+// match, and that's a known blind spot, not a judgment about them.
+const RESIDENTIAL_ORGS = [
+  'comcast', 'xfinity', 'at&t', 'verizon', 'charter', 'spectrum', 'cox communications',
+  't-mobile', 'sprint', 'vodafone', 'deutsche telekom', 'orange', 'telefonica',
+  'bt group', 'virgin media', 'sky broadband', 'telstra', 'rogers communications',
+  'bell canada', 'telus', 'ntt docomo', 'softbank', 'china mobile', 'china telecom',
+  'china unicom', 'reliance jio', 'bharti airtel', 'fastweb'
+]
+
+const HUMAN_DETECTORS = [
+  // Bots overwhelmingly run on server infrastructure, not real phones.
+  { name: 'mobile', test: (hit) => hit.device === 'mobile', label: () => 'mobile' },
+  // Cloudflare's free-tier asOrganization gives the ASN's owner by name,
+  // not just a number - matching known residential/mobile-carrier orgs
+  // beats trying to hardcode and verify exact ASN integers. Labeling with
+  // the actual org name, not just "residential ISP" - naming it is more
+  // convincing (and more fun) than a generic category.
+  { name: 'residentialIsp', test: (hit) => !!hit.asOrganization && RESIDENTIAL_ORGS.some((org) => hit.asOrganization.toLowerCase().includes(org)), label: (hit) => hit.asOrganization },
+  // "Private Relay" is the actually interesting fact, not "Apple Inc".
+  { name: 'privateRelay', test: (hit) => !!hit.asOrganization && hit.asOrganization.toLowerCase().includes('apple'), label: () => 'Private Relay' }
+  // Dropped modernProtocol (HTTP/2 or HTTP/3): table stakes for real
+  // browsers, but also the default for a lot of bot tooling now (Go's
+  // net/http negotiates HTTP/2 with no config, headless browsers are full
+  // HTTP/2+) - only ever excluded the laziest scripts, and diluted the
+  // tooltip with a chip that's true for almost anyone.
+]
+
+// HTTP/1.1 hits never get here - the server counts them as bots (isScriptedHit).
+export const humanSignals = (hit) => HUMAN_DETECTORS.filter((d) => d.test(hit)).map((d) => d.label(hit))

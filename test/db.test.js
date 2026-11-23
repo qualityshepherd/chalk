@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { purgeExpired } from '../src/db.js'
+import { purgeExpired, PURGE_HITS_PER_RUN } from '../src/db.js'
 import { SESSION_TTL_MS } from '../src/auth.js'
 
 const DAY = 86400000
@@ -30,13 +30,13 @@ const NOW = Date.UTC(2026, 10, 17, 12, 0, 0)
 test('purgeExpired: hits cut off at exactly retentionDays back', async () => {
   const db = fakeDb()
   await purgeExpired(db, NOW, 90)
-  assert.deepEqual(db.byTable.hits.args, [NOW - 90 * DAY])
+  assert.deepEqual(db.byTable.hits.args, [NOW - 90 * DAY, PURGE_HITS_PER_RUN])
 })
 
 test('purgeExpired: retention window is a parameter, not baked in', async () => {
   const db = fakeDb()
   await purgeExpired(db, NOW, 30)
-  assert.deepEqual(db.byTable.hits.args, [NOW - 30 * DAY])
+  assert.deepEqual(db.byTable.hits.args, [NOW - 30 * DAY, PURGE_HITS_PER_RUN])
 })
 
 test('purgeExpired: bot_counts cut off by date string, matching its PK', async () => {
@@ -71,4 +71,11 @@ test('purgeExpired: missing meta counts as zero rather than throwing', async () 
   const db = fakeDb()
   db.batch = async () => [{}, {}, {}, {}, {}]
   assert.deepEqual(await purgeExpired(db, NOW, 90), { hits: 0, botCounts: 0, rateLimits: 0, sessions: 0 })
+})
+
+test('purgeExpired: hit deletes are capped per run, oldest first', async () => {
+  const db = fakeDb()
+  await purgeExpired(db, NOW, 90, 250)
+  assert.match(db.byTable.hits.sql, /ORDER BY ts LIMIT \?/)
+  assert.equal(db.byTable.hits.args[1], 250)
 })

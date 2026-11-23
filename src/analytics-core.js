@@ -181,6 +181,11 @@ export const isBot = (path, ua = '') => {
 
 export const isDatacenter = (asn) => asn && BOT_ASNS.has(Number(asn))
 
+// Read-time, not ingest-time: the rows stay, so this is reversible and
+// applies to history. Real browsers reach Cloudflare over HTTP/2 or 3;
+// HTTP/1.1 on a page is a script. Feeds are exempt - readers use 1.1 legitimately.
+export const isScriptedHit = (hit) => !hit.rss_feed && hit.http_protocol === 'HTTP/1.1'
+
 // Salted because unsalted this reverses trivially - IPv4 is 2^32 addresses,
 // the whole space rainbow-tables in minutes, and truncating to 8 bytes
 // doesn't help since you build the table truncated too.

@@ -10,7 +10,7 @@ import {
   SESSION_TTL_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS,
   CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS, CHALLENGE_RATE_LIMIT_WINDOW_MS
 } from './auth.js'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, classifyRssClient, hashIp, sanitizeHitPayload, getBotFlaggedIps } from './analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, classifyRssClient, hashIp, sanitizeHitPayload, getBotFlaggedIps, isScriptedHit } from './analytics-core.js'
 
 const COOKIE_NAME = 'chalk_session'
 
@@ -158,7 +158,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
         byRssClient: {},
         recentHits: [],
         _ips: new Set(),
-        velocityBots: 0
+        readTimeBots: 0
       })
     }
     return dayMap.get(date)
@@ -181,7 +181,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
   // window, not just the burst itself - no clean line to draw between a
   // scraper's warm-up hits and a human's first few. bots/totalHits stay
   // hit-counts either way, matching incrementBotCount's existing semantics.
-  const botFlaggedIps = getBotFlaggedIps(hits.filter(h => !h.rss_feed))
+  const botFlaggedIps = getBotFlaggedIps(hits.filter(h => !h.rss_feed && !isScriptedHit(h)))
 
   for (const hit of hits) {
     const date = new Date(hit.ts).toISOString().slice(0, 10)
@@ -200,8 +200,8 @@ const handleAnalyticsData = withAuth(async (req, env) => {
       continue
     }
 
-    if (botFlaggedIps.has(hit.ip_hash)) {
-      day.velocityBots++
+    if (isScriptedHit(hit) || botFlaggedIps.has(hit.ip_hash)) {
+      day.readTimeBots++
       continue
     }
 
@@ -228,8 +228,8 @@ const handleAnalyticsData = withAuth(async (req, env) => {
   const result = [...dayMap.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))
     .map(([date, day]) => {
-      const { _ips, velocityBots, ...rest } = day
-      return { date, data: { ...rest, bots: (botCountMap.get(date) || 0) + velocityBots, uniques: _ips.size } }
+      const { _ips, readTimeBots, ...rest } = day
+      return { date, data: { ...rest, bots: (botCountMap.get(date) || 0) + readTimeBots, uniques: _ips.size } }
     })
 
   // hits.length hitting the query cap means some rows in the requested

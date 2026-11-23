@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aggregate, groupSessions } from '../public/analytics-core.js'
+import { aggregate, groupSessions, humanSignals } from '../public/analytics-core.js'
 
 // aggregate
 test('aggregate: sums totalHits and totalBots across days', () => {
@@ -136,4 +136,10 @@ test('groupSessions: per-hit fields default to empty string when missing, not un
 test('groupSessions: status passes through unmodified when present (no default - a real status code, including falsy-ish ones, must survive)', () => {
   const sessions = groupSessions([{ ip: 'ip-1', ts: 0, path: '/a', status: 404 }], 1)
   assert.equal(sessions[0].hits[0].status, 404)
+})
+
+// humanSignals
+test('humanSignals: phone on a home ISP gets both signals, a bare desktop gets none', () => {
+  assert.deepEqual(humanSignals({ device: 'mobile', asOrganization: 'Comcast Cable Communications' }), ['mobile', 'Comcast Cable Communications'])
+  assert.deepEqual(humanSignals({ device: 'desktop', asOrganization: 'HostPapa' }), [])
 })

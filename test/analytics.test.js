@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps, hashIp } from '../src/analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps, hashIp, isScriptedHit } from '../src/analytics-core.js'
 
 test('isBot: wp-login is a bot', () => {
   assert.equal(isBot('/wp-login.php', 'Mozilla/5.0'), true)
@@ -408,4 +408,16 @@ test('hashIp: ipv6 addresses hash fine', async () => {
   const hash = await hashIp('2606:4700:4700::1111', 'pepper')
   assert.match(hash, /^[0-9a-f]{16}$/)
   assert.notEqual(hash, await hashIp('2606:4700:4700::1001', 'pepper'))
+})
+
+// isScriptedHit
+test('isScriptedHit: HTTP/1.1 page hit is a script; HTTP/2, HTTP/3 and unknown are not', () => {
+  assert.equal(isScriptedHit({ http_protocol: 'HTTP/1.1' }), true)
+  assert.equal(isScriptedHit({ http_protocol: 'HTTP/2' }), false)
+  assert.equal(isScriptedHit({ http_protocol: 'HTTP/3' }), false)
+  assert.equal(isScriptedHit({ http_protocol: null }), false)
+})
+
+test('isScriptedHit: feed fetches over HTTP/1.1 are readers, not scripts', () => {
+  assert.equal(isScriptedHit({ http_protocol: 'HTTP/1.1', rss_feed: 'main' }), false)
 })
