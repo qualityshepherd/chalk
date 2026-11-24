@@ -221,7 +221,7 @@ const renderLogs = () => {
 window.filterIp = (ip) => { activeIp = ip; renderLogs() }
 window.clearFilter = () => { activeIp = null; renderLogs() }
 
-const render = ({ days: allData, truncated, totalUniques }) => {
+const render = ({ days: allData, truncated, totalUniques, rssReaders = {} }) => {
   const stats = aggregate(allData)
   allSessions = groupSessions(stats.recentHits, days)
   const topPaths = Object.entries(stats.byPath).sort((a, b) => b[1] - a[1]).slice(0, 10)
@@ -240,7 +240,9 @@ const render = ({ days: allData, truncated, totalUniques }) => {
   const totalRssHits = rssFeeds.reduce((sum, [, v]) => sum + (v.hits || 0), 0)
   const rssTip = rssFeeds.length
     ? rssFeeds.map(([feed, v]) => {
-        const subInfo = v.subscribers > 0 ? \` · \${v.subscribers} subs\` : ''
+        const readers = rssReaders[feed] || 0
+        const subInfo = (v.subscribers > 0 ? \` · \${v.subscribers} subs\` : '') +
+          (readers ? \` · \${readers} reader\${readers === 1 ? '' : 's'}\` : '')
         const aggs = Object.keys(v.aggregators).join(', ')
         return \`<div class="tip-row"><span>📡 \${feed}\${subInfo}\${aggs ? \` · \${aggs}\` : ''}</span><strong>\${v.hits || 0}</strong></div>\`
       }).join('')

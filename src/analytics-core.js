@@ -181,6 +181,26 @@ export const isBot = (path, ua = '') => {
 
 export const isDatacenter = (asn) => asn && BOT_ASNS.has(Number(asn))
 
+// A reader polls the same feed day after day; a crawler grabs it once and
+// moves on. Same ip on minDays different UTC days = one reader. A floor,
+// not a census: rotating ips undercount, shared NATs merge.
+export const countRssReaders = (hits, minDays = 3) => {
+  const seen = new Map()
+  for (const h of hits) {
+    if (!h.rss_feed || !h.ip_hash) continue
+    const key = `${h.rss_feed}\n${h.ip_hash}`
+    if (!seen.has(key)) seen.set(key, new Set())
+    seen.get(key).add(new Date(h.ts).toISOString().slice(0, 10))
+  }
+  const readers = {}
+  for (const [key, days] of seen) {
+    if (days.size < minDays) continue
+    const feed = key.slice(0, key.indexOf('\n'))
+    readers[feed] = (readers[feed] || 0) + 1
+  }
+  return readers
+}
+
 // Read-time, not ingest-time: the rows stay, so this is reversible and
 // applies to history. Real browsers reach Cloudflare over HTTP/2 or 3;
 // HTTP/1.1 on a page is a script. Feeds are exempt - readers use 1.1 legitimately.

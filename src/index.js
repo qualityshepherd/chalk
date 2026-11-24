@@ -10,7 +10,7 @@ import {
   SESSION_TTL_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS,
   CHALLENGE_RATE_LIMIT_MAX_ATTEMPTS, CHALLENGE_RATE_LIMIT_WINDOW_MS
 } from './auth.js'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, classifyRssClient, hashIp, sanitizeHitPayload, getBotFlaggedIps, isScriptedHit } from './analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, classifyRssClient, hashIp, sanitizeHitPayload, getBotFlaggedIps, isScriptedHit, countRssReaders } from './analytics-core.js'
 
 const COOKIE_NAME = 'chalk_session'
 
@@ -237,7 +237,7 @@ const handleAnalyticsData = withAuth(async (req, env) => {
   // a confidently wrong total with no indication anything was cut off.
   const truncated = hits.length >= HITS_QUERY_LIMIT
 
-  return json({ days: result, truncated, totalUniques: periodIps.size })
+  return json({ days: result, truncated, totalUniques: periodIps.size, rssReaders: countRssReaders(hits) })
 })
 
 // Auth routes

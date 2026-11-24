@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps, hashIp, isScriptedHit } from '../src/analytics-core.js'
+import { isBot, isDatacenter, parseDevice, parseRssSubscribers, sanitizeHitPayload, botSignals, getBotFlaggedIps, hashIp, isScriptedHit, countRssReaders } from '../src/analytics-core.js'
 
 test('isBot: wp-login is a bot', () => {
   assert.equal(isBot('/wp-login.php', 'Mozilla/5.0'), true)
@@ -420,4 +420,21 @@ test('isScriptedHit: HTTP/1.1 page hit is a script; HTTP/2, HTTP/3 and unknown a
 
 test('isScriptedHit: feed fetches over HTTP/1.1 are readers, not scripts', () => {
   assert.equal(isScriptedHit({ http_protocol: 'HTTP/1.1', rss_feed: 'main' }), false)
+})
+
+const DAY = 86400000
+const poll = (feed, ip, day) => ({ rss_feed: feed, ip_hash: ip, ts: Date.UTC(2026, 10, 1) + day * DAY })
+
+test('countRssReaders: same ip on 3 days is a reader, a one-off crawler is not', () => {
+  const hits = [
+    poll('/m/ton.xml', 'ton', 0), poll('/m/ton.xml', 'ton', 0), poll('/m/ton.xml', 'ton', 1), poll('/m/ton.xml', 'ton', 2),
+    ...['/m/a.xml', '/m/b.xml', '/m/c.xml'].map(f => poll(f, 'meta', 0)),
+    poll('/m/ton.xml', 'twice', 0), poll('/m/ton.xml', 'twice', 5)
+  ]
+  assert.deepEqual(countRssReaders(hits), { '/m/ton.xml': 1 })
+})
+
+test('countRssReaders: page hits and hashless rows never count', () => {
+  const hits = [0, 1, 2].flatMap(d => [{ ip_hash: 'x', ts: Date.UTC(2026, 10, 1) + d * DAY }, poll('/f', null, d)])
+  assert.deepEqual(countRssReaders(hits), {})
 })
